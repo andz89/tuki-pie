@@ -8,7 +8,7 @@ import { UserError } from './user-error';
 let now: Date;
 let repository: NoteRepository;
 let service: NoteService;
-let changed: ReturnType<typeof vi.fn<() => void>>;
+let changed: ReturnType<typeof vi.fn<(kind: string) => void>>;
 
 const local = (day: number, hours: number, minutes = 0) =>
   new Date(2026, 10, day, hours, minutes);
@@ -31,6 +31,34 @@ const remind = (
 ) => service.setReminder(id, { at: at.toISOString(), repeat });
 
 describe('NoteService', () => {
+  it('says what kind of change it was', () => {
+    const note = service.create({ title: 'Trip', body: 'hotel' });
+    service.update({ id: note.id, title: 'Trip', body: 'flights' });
+    remind(note.id, local(11, 12));
+    service.snooze(note.id);
+    service.done(note.id);
+    service.remove(note.id);
+    expect(changed.mock.calls.map(([kind]) => kind)).toEqual([
+      'text',
+      'text',
+      'reminder',
+      'reminder',
+      'reminder',
+      'removed',
+    ]);
+  });
+
+  it('reads only reminder times to find the next one, not every note body', () => {
+    const note = service.create({ title: 'Trip', body: 'x'.repeat(1000) });
+    remind(note.id, local(11, 12));
+    const byId = vi.spyOn(repository, 'findById');
+    const all = vi.spyOn(repository, 'findAll');
+    expect(service.nextDueTime()).toEqual(local(11, 12));
+    expect(service.due()).toEqual([]);
+    expect(byId).not.toHaveBeenCalled();
+    expect(all).not.toHaveBeenCalled();
+  });
+
   it('creates, updates and removes notes, telling listeners', () => {
     const note = service.create({ title: 'Trip', body: 'hotel' });
     expect(

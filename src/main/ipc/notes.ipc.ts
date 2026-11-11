@@ -7,6 +7,7 @@ import {
   Reminder,
 } from '../../shared/schemas/note.schema';
 import type { NoteService } from '../services/note.service';
+import { withoutEcho } from '../windows/notes-echo';
 import { openNotesWindow, takeNoteRequest } from '../windows/notes-window';
 import { dueReminders, fitReminderCard } from '../windows/reminder-window';
 import { handle } from './handle';
@@ -23,12 +24,13 @@ export function registerNotesIpc(notes: NoteService): void {
     cleanUp ? notes.listAfterCleanup() : notes.list(),
   );
 
+  // The window puts the saved note into its own list from the answer.
   handle(IpcChannels.notesCreate, z.tuple([NewNote]), (item) =>
-    notes.create(item),
+    withoutEcho(() => notes.create(item)),
   );
 
   handle(IpcChannels.notesUpdate, z.tuple([NoteEdit]), (edit) =>
-    notes.update(edit),
+    withoutEcho(() => notes.update(edit)),
   );
 
   handle(IpcChannels.notesRemove, z.tuple([Id]), (id) => notes.remove(id));

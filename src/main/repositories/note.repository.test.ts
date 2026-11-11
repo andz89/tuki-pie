@@ -51,11 +51,11 @@ describe('NoteRepository', () => {
       reminder: { at: '2026-11-11T09:00:00.000Z', repeat: 'daily' },
       snoozedUntil: null,
     });
-    expect(notes.findWithReminders().map(({ id }) => id)).toEqual(['a']);
+    expect(notes.findReminderTimes().map(({ id }) => id)).toEqual(['a']);
 
     notes.setReminder('a', null);
     expect(notes.findById('a')?.reminder).toBeNull();
-    expect(notes.findWithReminders()).toEqual([]);
+    expect(notes.findReminderTimes()).toEqual([]);
   });
 
   it('removes only empty notes without a reminder', () => {

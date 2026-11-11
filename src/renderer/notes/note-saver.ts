@@ -18,6 +18,8 @@ export class NoteSaver {
     private id: string | null,
     saved: { title: string; body: string },
     private readonly onError: (message: string) => void,
+    // Gets each saved note, so the list updates without asking for every note.
+    private readonly onSaved: (note: Note) => void = () => undefined,
   ) {
     this.saved = saved;
   }
@@ -48,5 +50,6 @@ export class NoteSaver {
     }
     this.id = result.value.id;
     this.saved = { title, body };
+    this.onSaved(result.value);
   }
 }

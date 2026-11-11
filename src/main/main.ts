@@ -155,8 +155,11 @@ function startRuntime(startup: Startup): void {
   const notes = new NoteService(new NoteRepository(db));
   const reminders = new ReminderScheduler(notes, showReminders);
   startup.onQuit(() => reminders.stop());
-  notes.onChanged(() => {
-    reminders.refresh();
+  notes.onChanged((kind) => {
+    // A new title or text doesn't move any reminder.
+    if (kind !== 'text') {
+      reminders.refresh();
+    }
     sendNotesChanged();
   });
   const settingsRepository = new SettingsRepository(db);

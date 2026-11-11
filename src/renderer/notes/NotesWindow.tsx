@@ -7,13 +7,8 @@ import type { Note, Settings } from '../../shared/types';
 import { PieIcon } from '../components/icons/SliceIcon';
 import { NoteSaver } from './note-saver';
 import { notesBridge } from './notes-bridge';
-import {
-  displayTitle,
-  filterNotes,
-  isBlank,
-  listPreview,
-  nextRing,
-} from './notes-view';
+import { NotesSidebar } from './NotesSidebar';
+import { displayTitle, isBlank, nextRing, withSavedNote } from './notes-view';
 import { ReminderMenu } from './ReminderMenu';
 
 const SAVE_AFTER_MS = 500;
@@ -23,7 +18,6 @@ const CLOCK_TICK_MS = 30000;
 export function NotesWindow() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [query, setQuery] = useState('');
   // Whether the editor shows a note, saved or new.
   const [isEditing, setIsEditing] = useState(false);
   const [noteId, setNoteId] = useState<string | null>(null);
@@ -37,6 +31,10 @@ export function NotesWindow() {
   const saverRef = useRef<NoteSaver | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  // Read by `leave`, so it, `show` and the memoized list stay the same
+  // across saves.
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
 
   const reload = useCallback(async (cleanUp = false) => {
     const result = await notesBridge.list(cleanUp);
@@ -62,13 +60,13 @@ export function NotesWindow() {
     const saver = saverRef.current;
     const { title: t, body: b } = textRef.current;
     if (saver?.noteId && isBlank(t, b)) {
-      const stored = notes.find(({ id }) => id === saver.noteId);
+      const stored = notesRef.current.find(({ id }) => id === saver.noteId);
       if (!stored?.reminder) {
         await notesBridge.remove(saver.noteId);
       }
     }
     saverRef.current = null;
-  }, [flush, notes]);
+  }, [flush]);
 
   const show = useCallback(
     async (note: Note | null) => {
@@ -84,6 +82,8 @@ export function NotesWindow() {
         note?.id ?? null,
         text,
         (message) => setError(message),
+        // Main doesn't echo this window's own saves, so the list is patched.
+        (saved) => setNotes((current) => withSavedNote(current, saved)),
       );
       setIsEditing(true);
       if (note === null) {
@@ -188,8 +188,8 @@ export function NotesWindow() {
     setError(result.ok ? null : result.error);
   };
 
+  const showNote = useCallback((note: Note | null) => void show(note), [show]);
   const open = notes.find(({ id }) => id === noteId) ?? null;
-  const shown = filterNotes(notes, query);
   const ring = open ? nextRing(open) : null;
   const canRemind = noteId !== null || !isBlank(title, body);
 
@@ -199,64 +199,7 @@ export function NotesWindow() {
       data-theme={settings.theme}
       style={{ '--accent': settings.accent } as CSSProperties}
     >
-      <aside className="notes-side">
-        <div className="notes-side-bar">
-          <div className="notes-search">
-            <span className="notes-search-icon">
-              <PieIcon type="search" size={14} />
-            </span>
-            <input
-              type="search"
-              value={query}
-              placeholder="Search notes"
-              aria-label="Search notes"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
-          <button
-            type="button"
-            className="button-primary notes-new"
-            aria-label="New note"
-            title="New note"
-            onClick={() => void show(null)}
-          >
-            <PieIcon type="add" size={16} />
-          </button>
-        </div>
-
-        {notes.length > 0 && shown.length === 0 && (
-          <p className="notes-empty-list">No note contains "{query.trim()}".</p>
-        )}
-        <ul className="notes-list">
-          {shown.map((note) => {
-            const time = nextRing(note);
-            return (
-              <li key={note.id}>
-                <button
-                  type="button"
-                  className={
-                    note.id === noteId ? 'notes-item is-open' : 'notes-item'
-                  }
-                  aria-current={note.id === noteId}
-                  onClick={() => void show(note)}
-                >
-                  <span className="notes-item-title">
-                    {displayTitle(note.title)}
-                  </span>
-                  {time && (
-                    <span className="notes-item-bell">
-                      🔔 {describeTime(time, now)}
-                    </span>
-                  )}
-                  <span className="notes-item-preview">
-                    {listPreview(note.body)}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </aside>
+      <NotesSidebar notes={notes} openId={noteId} now={now} onShow={showNote} />
 
       <main className="notes-editor">
         {error && (

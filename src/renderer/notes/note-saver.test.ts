@@ -27,6 +27,18 @@ function fakeApi() {
 const EMPTY = { title: '', body: '' };
 
 describe('NoteSaver', () => {
+  it('hands over each saved note, so the list can show it without a reload', async () => {
+    const api = fakeApi();
+    const onSaved = vi.fn();
+    const saver = new NoteSaver(api, null, EMPTY, vi.fn(), onSaved);
+    await saver.save('Trip', '');
+    await saver.save('Trip', 'hotel');
+    expect(onSaved.mock.calls.map(([note]) => note.body)).toEqual([
+      '',
+      'hotel',
+    ]);
+  });
+
   it('never creates a blank new note', async () => {
     const api = fakeApi();
     await new NoteSaver(api, null, EMPTY, vi.fn()).save(' ', '\n');

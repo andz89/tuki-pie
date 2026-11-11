@@ -2,6 +2,7 @@ import { BrowserWindow, app, ipcMain } from 'electron';
 import type { IpcMainEvent } from 'electron';
 import path from 'node:path';
 import { IpcChannels } from '../../shared/ipc-channels';
+import { isEchoQuiet } from './notes-echo';
 import { isQuitting } from './quitting';
 import { saveBeforeClose } from './save-before-close';
 import { setWindowRole } from '../ipc/ipc-access';
@@ -22,6 +23,9 @@ export function takeNoteRequest(): string | null {
 
 // Every note change reaches the window, also ones made from the card.
 export function sendNotesChanged(): void {
+  if (isEchoQuiet()) {
+    return;
+  }
   if (notesWindow && !notesWindow.isDestroyed()) {
     notesWindow.webContents.send(IpcChannels.notesChanged);
   }

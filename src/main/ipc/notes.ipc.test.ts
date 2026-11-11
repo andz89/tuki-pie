@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IpcChannels } from '../../shared/ipc-channels';
 import type { NoteService } from '../services/note.service';
 import { openNotesWindow } from '../windows/notes-window';
+import { isEchoQuiet } from '../windows/notes-echo';
 import { registerNotesIpc, registerReminderIpc } from './notes.ipc';
 import { eventFor } from './fake-sender';
 
@@ -15,6 +16,22 @@ vi.mock('../windows/reminder-window', () => ({
   dueReminders: vi.fn(() => []),
   fitReminderCard: vi.fn(),
 }));
+
+describe("the Notes window's own saves", () => {
+  it.each([
+    [IpcChannels.notesCreate, 'create', { title: 'A', body: '' }],
+    [IpcChannels.notesUpdate, 'update', { id: 'n1', title: 'A', body: 'b' }],
+  ] as const)('%s does not echo back to it', async (channel, method, input) => {
+    let quietDuringSave = false;
+    notes[method].mockImplementationOnce(() => {
+      quietDuringSave = isEchoQuiet();
+      return { id: 'n1' };
+    });
+    await handlerFor(channel)(eventFor(channel), input);
+    expect(quietDuringSave).toBe(true);
+    expect(isEchoQuiet()).toBe(false);
+  });
+});
 
 function handlerFor(channel: string) {
   const call = vi

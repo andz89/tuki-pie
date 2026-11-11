@@ -5,6 +5,7 @@ import {
   filterNotes,
   isBlank,
   listPreview,
+  withSavedNote,
   nextRing,
   toLocalInput,
 } from './notes-view';
@@ -38,6 +39,27 @@ describe('list text', () => {
     expect(displayTitle('  ')).toBe('Untitled note');
     expect(listPreview('a\n\n  b')).toBe('a b');
     expect(listPreview('x'.repeat(100))).toHaveLength(60);
+  });
+
+  it('makes a preview from the start of a very long note', () => {
+    const body = `  first words ${'x '.repeat(500000)}`;
+    expect(listPreview(body).startsWith('first words x x')).toBe(true);
+    expect(listPreview(body)).toHaveLength(60);
+  });
+
+  it('puts a saved note at the top of the list, in place of its old copy', () => {
+    const list = [note('a', 'A', ''), note('b', 'B', ''), note('c', 'C', '')];
+    expect(
+      withSavedNote(list, note('b', 'B2', '')).map(({ id, title }) => [
+        id,
+        title,
+      ]),
+    ).toEqual([
+      ['b', 'B2'],
+      ['a', 'A'],
+      ['c', 'C'],
+    ]);
+    expect(withSavedNote(list, note('d', 'D', ''))[0].id).toBe('d');
   });
 
   it('knows a blank note', () => {

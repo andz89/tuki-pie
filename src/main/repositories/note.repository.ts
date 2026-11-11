@@ -33,6 +33,12 @@ function toNote(row: NoteRow): Note {
   });
 }
 
+export interface ReminderTimes {
+  id: string;
+  at: string;
+  snoozedUntil: string | null;
+}
+
 export class NoteRepository {
   constructor(private readonly db: Database.Database) {}
 
@@ -53,12 +59,19 @@ export class NoteRepository {
     return row === undefined ? null : toNote(row);
   }
 
-  // Only notes with a reminder, which is what the scheduler needs.
-  findWithReminders(): Note[] {
+  // Just the times, with no title or text: the scheduler looks at every
+  // reminder each time a note changes, and bodies can be long.
+  findReminderTimes(): ReminderTimes[] {
     const rows = this.db
-      .prepare(`SELECT ${COLUMNS} FROM notes WHERE remind_at IS NOT NULL`)
-      .all() as NoteRow[];
-    return rows.map(toNote);
+      .prepare(
+        'SELECT id, remind_at, snoozed_until FROM notes WHERE remind_at IS NOT NULL',
+      )
+      .all() as Pick<NoteRow, 'id' | 'remind_at' | 'snoozed_until'>[];
+    return rows.map((row) => ({
+      id: row.id,
+      at: row.remind_at as string,
+      snoozedUntil: row.snoozed_until,
+    }));
   }
 
   count(): number {

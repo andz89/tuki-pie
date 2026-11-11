@@ -27,11 +27,15 @@ export function notePreview(body: string): string {
     : `${line.slice(0, PREVIEW_LENGTH - 1).trimEnd()}…`;
 }
 
+// What a change touched: only the title and text, a reminder (its time,
+// snooze or end), or the note went.
+export type NoteChange = 'text' | 'reminder' | 'removed';
+
 export const noteTitle = (note: Pick<Note, 'title'>) =>
   note.title.trim() || 'Untitled note';
 
 export class NoteService {
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = new Set<(kind: NoteChange) => void>();
 
   constructor(
     private readonly notes: NoteRepository,
@@ -39,7 +43,7 @@ export class NoteService {
   ) {}
 
   // Told after every change, so the scheduler and the windows catch up.
-  onChanged(listener: () => void): () => void {
+  onChanged(listener: (kind: NoteChange) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
@@ -60,21 +64,21 @@ export class NoteService {
     }
     const id = randomUUID();
     this.notes.insert(id, item.title, item.body);
-    this.changed();
+    this.changed('text');
     return this.existing(id);
   }
 
   update(edit: NoteEdit): Note {
     this.existing(edit.id);
     this.notes.update(edit);
-    this.changed();
+    this.changed('text');
     return this.existing(edit.id);
   }
 
   remove(id: string): void {
     if (this.notes.findById(id)) {
       this.notes.remove(id);
-      this.changed();
+      this.changed('removed');
     }
   }
 
@@ -92,25 +96,28 @@ export class NoteService {
         repeat: reminder.repeat,
       });
     }
-    this.changed();
+    this.changed('reminder');
     return this.existing(id);
   }
 
-  // Reminders that should show now, the longest waiting first.
+  // Reminders that should show now, the longest waiting first. Only the
+  // due ones are read in full, for their title and preview.
   due(): DueReminder[] {
     const now = this.now();
     return this.notes
-      .findWithReminders()
-      .map((note) => ({
-        note,
-        time: dueTime(note.reminder?.at ?? null, note.snoozedUntil),
+      .findReminderTimes()
+      .map(({ id, at, snoozedUntil }) => ({
+        id,
+        time: dueTime(at, snoozedUntil),
       }))
       .filter(
-        (item): item is { note: Note; time: Date } =>
+        (item): item is { id: string; time: Date } =>
           item.time !== null && item.time <= now,
       )
       .sort((a, b) => a.time.getTime() - b.time.getTime())
-      .map(({ note }) => ({
+      .map(({ id }) => this.notes.findById(id))
+      .filter((note): note is Note => note !== null)
+      .map((note) => ({
         id: note.id,
         title: noteTitle(note),
         preview: notePreview(note.body),
@@ -121,8 +128,8 @@ export class NoteService {
   nextDueTime(): Date | null {
     const now = this.now();
     let next: Date | null = null;
-    for (const note of this.notes.findWithReminders()) {
-      const time = dueTime(note.reminder?.at ?? null, note.snoozedUntil);
+    for (const { at, snoozedUntil } of this.notes.findReminderTimes()) {
+      const time = dueTime(at, snoozedUntil);
       if (time && time > now && (next === null || time < next)) {
         next = time;
       }
@@ -142,7 +149,7 @@ export class NoteService {
       id,
       next === null ? null : { at: next.toISOString(), repeat },
     );
-    this.changed();
+    this.changed('reminder');
   }
 
   // The reminder's own times stay; the snooze rings in between.
@@ -153,7 +160,7 @@ export class NoteService {
     }
     const until = new Date(this.now().getTime() + SNOOZE_MS).toISOString();
     this.notes.setSnooze(id, until);
-    this.changed();
+    this.changed('reminder');
   }
 
   private existing(id: string): Note {
@@ -164,9 +171,9 @@ export class NoteService {
     return note;
   }
 
-  private changed(): void {
+  private changed(kind: NoteChange): void {
     for (const listener of this.listeners) {
-      listener();
+      listener(kind);
     }
   }
 }

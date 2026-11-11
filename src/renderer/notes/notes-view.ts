@@ -5,12 +5,26 @@ const PREVIEW_LENGTH = 60;
 
 export const displayTitle = (title: string) => title.trim() || 'Untitled note';
 
+// Plenty for a 60-character preview, after squashing spaces. A note can be
+// very long, and the list redraws as you type.
+const PREVIEW_SOURCE = 400;
+
 // The first line of text under the title in the list.
 export function listPreview(body: string): string {
-  const line = body.replace(/\s+/g, ' ').trim();
+  const line = body
+    .trimStart()
+    .slice(0, PREVIEW_SOURCE)
+    .replace(/\s+/g, ' ')
+    .trim();
   return line.length <= PREVIEW_LENGTH
     ? line
     : `${line.slice(0, PREVIEW_LENGTH - 1).trimEnd()}…`;
+}
+
+// The list after a save: the note at the top, as the most recently changed,
+// in place of its old copy.
+export function withSavedNote(notes: Note[], saved: Note): Note[] {
+  return [saved, ...notes.filter(({ id }) => id !== saved.id)];
 }
 
 // Notes whose title or text holds every word typed, ignoring case.
