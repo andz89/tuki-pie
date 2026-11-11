@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { systemToolPath } from '../system-tools';
 
 // --- The picture Explorer shows for a file -------------------------------------
 // Store apps (ChatGPT, Snipping Tool) are shortcuts with no file behind them,
@@ -58,7 +59,7 @@ const ENCODED = Buffer.from(SCRIPT, 'utf16le').toString('base64');
 export function shellIconOf(path: string): Promise<string | null> {
   return new Promise((resolve) => {
     execFile(
-      'powershell.exe',
+      systemToolPath('powershell.exe'),
       [
         '-NoProfile',
         '-NonInteractive',

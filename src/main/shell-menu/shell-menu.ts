@@ -1,6 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { systemToolPath } from '../system-tools';
 
 // Started with this, the app opens the donut instead of Settings.
 export const OPEN_PIE_FLAG = '--open-pie';
@@ -39,14 +40,19 @@ export function launcherPath(execPath: string): string {
 
 export function installShellMenu(execPath: string): void {
   for (const args of addMenuCommands(launcherPath(execPath))) {
-    execFile('reg.exe', args, { windowsHide: true }, (error) => {
-      if (error) {
-        console.warn(
-          'Could not add the right-click menu entry:',
-          error.message,
-        );
-      }
-    });
+    execFile(
+      systemToolPath('reg.exe'),
+      args,
+      { windowsHide: true },
+      (error) => {
+        if (error) {
+          console.warn(
+            'Could not add the right-click menu entry:',
+            error.message,
+          );
+        }
+      },
+    );
   }
 }
 
@@ -54,7 +60,10 @@ export function installShellMenu(execPath: string): void {
 export function removeShellMenu(): void {
   for (const args of removeMenuCommands()) {
     try {
-      execFileSync('reg.exe', args, { windowsHide: true, stdio: 'ignore' });
+      execFileSync(systemToolPath('reg.exe'), args, {
+        windowsHide: true,
+        stdio: 'ignore',
+      });
     } catch {
       // Already gone.
     }

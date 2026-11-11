@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { systemToolPath } from '../system-tools';
 
 // The window classes of a File Explorer window.
 const EXPLORER_CLASSES = new Set(['CabinetWClass', 'ExploreWClass']);
@@ -114,7 +115,7 @@ export function readExplorerSelection(
   );
   return new Promise((resolve) => {
     execFile(
-      'powershell.exe',
+      systemToolPath('powershell.exe'),
       ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
       { windowsHide: true, timeout: READ_TIMEOUT_MS, encoding: 'utf8' },
       (error, stdout) => {
