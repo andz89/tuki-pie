@@ -214,9 +214,8 @@ describe('capturing through the debugger', () => {
     const shot = chrome.debugger.sendCommand.mock.calls.find(
       ([, method]) => method === 'Page.captureScreenshot',
     );
-    expect(
-      (shot?.[2] as { clip: { height: number } }).clip.height,
-    ).toBeLessThanOrEqual(MAX_CAPTURE_HEIGHT);
+    const params = shot?.[2] as { clip: { height: number } } | undefined;
+    expect(params?.clip.height).toBeLessThanOrEqual(MAX_CAPTURE_HEIGHT);
   });
 
   it('detaches first when a command hangs, instead of waiting on cleanup', async () => {
