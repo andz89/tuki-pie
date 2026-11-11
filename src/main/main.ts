@@ -169,7 +169,15 @@ function startRuntime(startup: Startup): void {
     sendNotesChanged();
   });
   const settingsRepository = new SettingsRepository(db);
-  const settings = new SettingsService(settingsRepository);
+  const settings = new SettingsService(settingsRepository, {
+    useOpenKeys: setOpenKeys,
+    applied: (saved) => {
+      setPieSize(saved.size);
+      setPiePin(saved.pin);
+      // Defined below; only called once the app is running.
+      suggestionSync.push();
+    },
+  });
   // A copied address is checked only if the Links list would offer it.
   setCopiedAddressRule((address) =>
     canOpen(address, readLinkFilter(settings.get().linkFilter)),
@@ -226,7 +234,7 @@ function startRuntime(startup: Startup): void {
   registerPageInfoIpc(settings);
   registerScreenshotIpc();
   registerZipIpc(zipSelection);
-  registerSettingsIpc(settings, () => suggestionSync.push());
+  registerSettingsIpc(settings);
   registerPanelIpc(slices);
   registerVolumeIpc();
   registerChromeIpc(pairing, chromeBridge);

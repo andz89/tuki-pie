@@ -2,18 +2,10 @@ import { ipcMain } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IpcChannels } from '../../shared/ipc-channels';
 import type { SettingsService } from '../services/settings.service';
-import { UserError } from '../services/user-error';
-import { setOpenKeys } from '../shortcuts/open-keys';
-import { setPiePin, setPieSize } from '../windows/pie-window';
 import { registerSettingsIpc } from './settings.ipc';
 import { eventFor } from './fake-sender';
 
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }));
-vi.mock('../windows/pie-window', () => ({
-  setPiePin: vi.fn(),
-  setPieSize: vi.fn(),
-}));
-vi.mock('../shortcuts/open-keys', () => ({ setOpenKeys: vi.fn() }));
 
 const saved = {
   theme: 'dark',
@@ -21,8 +13,7 @@ const saved = {
   size: 'large',
   pin: 'pinned',
 };
-const onChanged = vi.fn();
-const settings = { get: vi.fn(() => saved), update: vi.fn(() => saved) };
+const settings = { get: vi.fn(() => saved), change: vi.fn(() => saved) };
 
 function handlerFor(channel: string) {
   const call = vi
@@ -34,24 +25,16 @@ function handlerFor(channel: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  registerSettingsIpc(settings as unknown as SettingsService, onChanged);
+  registerSettingsIpc(settings as unknown as SettingsService);
 });
 
 describe('settings IPC', () => {
-  it('reports a saved change, so Chrome gets the suggestions switch', async () => {
-    await handlerFor(IpcChannels.settingsUpdate)(
-      eventFor(IpcChannels.settingsUpdate),
-      { suggestionsInChrome: 'off' },
-    );
-    expect(onChanged).toHaveBeenCalledOnce();
-  });
-
   it('lets the donut change its look', async () => {
     await handlerFor(IpcChannels.pieSettingsUpdate)(
       eventFor(IpcChannels.pieSettingsUpdate),
       { pin: 'pinned', theme: 'light' },
     );
-    expect(settings.update).toHaveBeenCalledWith({
+    expect(settings.change).toHaveBeenCalledWith({
       pin: 'pinned',
       theme: 'light',
     });
@@ -66,7 +49,7 @@ describe('settings IPC', () => {
           changes,
         ),
       ).rejects.toThrow();
-      expect(settings.update).not.toHaveBeenCalled();
+      expect(settings.change).not.toHaveBeenCalled();
     },
   );
 
@@ -77,56 +60,7 @@ describe('settings IPC', () => {
         { theme: 'dark' },
       ),
     ).resolves.toEqual({ ok: true, value: saved });
-    expect(settings.update).toHaveBeenCalledExactlyOnceWith({ theme: 'dark' });
-  });
-
-  it('resizes the donut window to the saved size', async () => {
-    await handlerFor(IpcChannels.settingsUpdate)(
-      eventFor(IpcChannels.settingsUpdate),
-      { size: 'large' },
-    );
-    expect(setPieSize).toHaveBeenCalledExactlyOnceWith('large');
-  });
-
-  it('applies the saved pin to the donut window', async () => {
-    await handlerFor(IpcChannels.settingsUpdate)(
-      eventFor(IpcChannels.settingsUpdate),
-      { pin: 'pinned' },
-    );
-    expect(setPiePin).toHaveBeenCalledExactlyOnceWith('pinned');
-  });
-
-  it('registers new open keys before saving them', async () => {
-    await handlerFor(IpcChannels.settingsUpdate)(
-      eventFor(IpcChannels.settingsUpdate),
-      { openKeys: 'Ctrl+Alt+P' },
-    );
-    expect(setOpenKeys).toHaveBeenCalledExactlyOnceWith('Ctrl+Alt+P');
-    expect(settings.update).toHaveBeenCalledOnce();
-  });
-
-  it('does not save open keys that are refused', async () => {
-    vi.mocked(setOpenKeys).mockImplementationOnce(() => {
-      throw new UserError('Those keys are already used by another app.');
-    });
-    await expect(
-      handlerFor(IpcChannels.settingsUpdate)(
-        eventFor(IpcChannels.settingsUpdate),
-        { openKeys: 'Ctrl+Alt+P' },
-      ),
-    ).resolves.toEqual({
-      ok: false,
-      error: 'Those keys are already used by another app.',
-    });
-    expect(settings.update).not.toHaveBeenCalled();
-  });
-
-  it('leaves the open keys alone when they are not changed', async () => {
-    await handlerFor(IpcChannels.settingsUpdate)(
-      eventFor(IpcChannels.settingsUpdate),
-      { theme: 'light' },
-    );
-    expect(setOpenKeys).not.toHaveBeenCalled();
+    expect(settings.change).toHaveBeenCalledExactlyOnceWith({ theme: 'dark' });
   });
 
   it.each([
@@ -141,6 +75,6 @@ describe('settings IPC', () => {
         changes,
       ),
     ).rejects.toThrow();
-    expect(settings.update).not.toHaveBeenCalled();
+    expect(settings.change).not.toHaveBeenCalled();
   });
 });
