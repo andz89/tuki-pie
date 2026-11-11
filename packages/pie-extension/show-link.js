@@ -29,22 +29,21 @@ export function showLinkOnPage(index, href) {
     }
   `;
 
+  // These three are copies of collect-page.js; show-link-sync.test.ts keeps
+  // them equal.
+  const isText = (value) => typeof value === 'string' && value !== '';
+  const isUsableUrl = (url) =>
+    isText(url) && !url.startsWith('data:') && url.length <= MAX_URL;
   const isListedLink = (link) => {
     if (link.closest('#wpadminbar')) {
       return false;
     }
-    const url = link.href;
-    if (
-      typeof url !== 'string' ||
-      url === '' ||
-      url.startsWith('data:') ||
-      url.length > MAX_URL ||
-      url.endsWith('/#')
-    ) {
+    const href = link.href;
+    if (!isUsableUrl(href) || href.endsWith('/#')) {
       return false;
     }
     try {
-      return LINK_PROTOCOLS.includes(new URL(url).protocol);
+      return LINK_PROTOCOLS.includes(new URL(href).protocol);
     } catch {
       return false;
     }
