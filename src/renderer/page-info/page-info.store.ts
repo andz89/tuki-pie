@@ -62,6 +62,7 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
     message: null,
     siteVisible: false,
     chromeConnected: false,
+    reportId: 0,
   },
   problem: null,
   settings: DEFAULT_SETTINGS,

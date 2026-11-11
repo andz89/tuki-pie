@@ -27,6 +27,7 @@ const update = (changes: Partial<PageInfoUpdate>): PageInfoUpdate => ({
   message: null,
   siteVisible: false,
   chromeConnected: false,
+  reportId: 0,
   ...changes,
 });
 

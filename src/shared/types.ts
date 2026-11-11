@@ -88,6 +88,9 @@ export interface PageInfoUpdate {
   message: string | null;
   siteVisible: boolean;
   chromeConnected: boolean;
+  // Changes with each new page, not with each re-read of the same one, so
+  // the window keeps your ticks while late tags arrive.
+  reportId: number;
 }
 
 // A picture of the whole checked page, for the Screenshot tab.

@@ -82,6 +82,7 @@ export class PageInfoController {
     message: null,
     siteVisible: false,
     chromeConnected: false,
+    reportId: 0,
   };
   private isDisposed = false;
   private isPageLoading = false;
@@ -266,6 +267,7 @@ export class PageInfoController {
       return;
     }
     this.forgetCapture();
+    this.apply({ reportId: this.update.reportId + 1 });
     // The site updates its title and details just after changing the address.
     clearTimeout(this.settleTimer);
     clearTimeout(this.lateReadTimer);
@@ -303,7 +305,13 @@ export class PageInfoController {
     this.isPageLoading = true;
     this.hasCommitted = false;
     this.ignoresLoadFinish = false;
-    this.apply({ status: 'checking', address, report: null, message: null });
+    this.apply({
+      status: 'checking',
+      address,
+      report: null,
+      message: null,
+      reportId: this.update.reportId + 1,
+    });
     this.loadTimer = setTimeout(() => this.giveUpWaiting(), LOAD_LIMIT_MS);
   }
 
@@ -332,6 +340,7 @@ export class PageInfoController {
       status: 'failed',
       report: null,
       message: COULD_NOT_OPEN,
+      reportId: this.update.reportId + 1,
       ...changes,
     });
   }
@@ -379,9 +388,13 @@ export class PageInfoController {
     // Otherwise only a later re-read failed, so the first report still stands.
   }
 
+  // Each page is read three times, and most reads find nothing new. Sending
+  // only real changes spares the window a redraw of every list.
   private apply(changes: Partial<PageInfoUpdate>): void {
-    this.update = { ...this.update, ...changes };
-    if (!this.isDisposed) {
+    const next = { ...this.update, ...changes };
+    const isSame = JSON.stringify(next) === JSON.stringify(this.update);
+    this.update = next;
+    if (!this.isDisposed && !isSame) {
       this.send(this.update);
     }
   }

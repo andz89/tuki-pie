@@ -95,6 +95,48 @@ describe('reading the page', () => {
     expect(controller.state().report?.meta.title).toBe('Hi');
   });
 
+  it('sends three equal reads of one page once', async () => {
+    controller.check('example.com');
+    controller.sitePageCommitted();
+    controller.siteLoaded();
+    await flush();
+    send.mockClear();
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(site.read).toHaveBeenCalledTimes(3);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('sends a later read that found more, under the same report id', async () => {
+    controller.check('example.com');
+    controller.sitePageCommitted();
+    controller.siteLoaded();
+    await flush();
+    const first = controller.state().reportId;
+    const later = page('https://example.com/');
+    site.read.mockResolvedValue({
+      ...later,
+      meta: { ...later.meta, title: 'Hi again' },
+    });
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(send).toHaveBeenLastCalledWith(
+      expect.objectContaining({ reportId: first }),
+    );
+    expect(controller.state().report?.meta.title).toBe('Hi again');
+  });
+
+  it('gives each new page a new report id', async () => {
+    controller.check('a.com');
+    const first = controller.state().reportId;
+    controller.check('b.com');
+    expect(controller.state().reportId).not.toBe(first);
+    const second = controller.state().reportId;
+    controller.sitePageCommitted();
+    controller.siteLoaded();
+    await flush();
+    controller.sitePageChangedInPlace();
+    expect(controller.state().reportId).not.toBe(second);
+  });
+
   it('shows the address the page ended on', async () => {
     site.read.mockResolvedValue(page('https://example.com/login'));
     controller.check('example.com');

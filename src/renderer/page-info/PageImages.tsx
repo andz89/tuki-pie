@@ -201,11 +201,14 @@ function ImageViewer({
 }
 
 export function PageImages({
+  pageKey,
   images,
   pageUrl,
   linkFilter,
   chromeConnected,
 }: {
+  // Changes with each new page; see PageInfoUpdate.reportId.
+  pageKey: number;
   images: string[];
   pageUrl: string;
   linkFilter: LinkFilter;
@@ -219,13 +222,13 @@ export function PageImages({
   const [viewing, setViewing] = useState<string | null>(null);
   const viewerRef = useRef<HTMLDialogElement>(null);
 
-  // A new read of the page starts fresh.
+  // A new page starts fresh.
   useEffect(() => {
     setBroken(new Set());
     setConfirming(false);
     setOpened(0);
     viewerRef.current?.close();
-  }, [images]);
+  }, [pageKey]);
 
   useEffect(() => {
     if (copied === null) {

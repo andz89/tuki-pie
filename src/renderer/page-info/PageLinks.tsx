@@ -138,6 +138,7 @@ function LinkRow({
 }
 
 export function PageLinks({
+  pageKey,
   links,
   linkFilter,
   hideDuplicates,
@@ -146,6 +147,8 @@ export function PageLinks({
   onIncludeAll,
   chromeConnected,
 }: {
+  // Changes with each new page; see PageInfoUpdate.reportId.
+  pageKey: number;
   links: PageLink[];
   linkFilter: LinkFilter;
   hideDuplicates: boolean;
@@ -161,12 +164,12 @@ export function PageLinks({
   const [confirming, setConfirming] = useState(false);
   const [opened, setOpened] = useState(0);
 
-  // A new read of the page starts fresh.
+  // A new page starts fresh.
   useEffect(() => {
     setStatuses({});
     setConfirming(false);
     setOpened(0);
-  }, [links]);
+  }, [pageKey]);
 
   useEffect(() => {
     if (copied === null) {

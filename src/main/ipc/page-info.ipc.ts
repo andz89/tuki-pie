@@ -44,6 +44,7 @@ const NOTHING_LOADED: PageInfoUpdate = {
   message: null,
   siteVisible: false,
   chromeConnected: false,
+  reportId: 0,
 };
 
 export function registerPageInfoIpc(settings: SettingsService): void {

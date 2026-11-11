@@ -43,7 +43,7 @@ export function PageInfoWindow() {
   const setLinkFilter = usePageInfoStore((state) => state.setLinkFilter);
 
   const { status, address, report, message } = update;
-  const { chromeConnected } = update;
+  const { chromeConnected, reportId } = update;
   const onTop = settings.pageInfoOnTop === 'on-top';
   const linkFilter = useMemo(
     () => readLinkFilter(settings.linkFilter),
@@ -122,11 +122,12 @@ export function PageInfoWindow() {
 
   // Counts the checks, so the dashboard plays its entrance for each one.
   const [checkCount, setCheckCount] = useState(0);
-  // A new read of the page starts with every link included.
+  // A new page starts with every link included. A re-read of the same page,
+  // which only adds late tags, keeps your ticks.
   useEffect(() => {
     setChoices(new Map());
     setCheckCount((count) => count + 1);
-  }, [report]);
+  }, [reportId]);
 
   useEffect(() => {
     if (address !== null) {
@@ -352,6 +353,7 @@ export function PageInfoWindow() {
                 </div>
               )}
               <PageLinks
+                pageKey={reportId}
                 links={report.links}
                 linkFilter={linkFilter}
                 hideDuplicates={hideDuplicates}
@@ -372,6 +374,7 @@ export function PageInfoWindow() {
           >
             <section className="info-card" aria-label="Images">
               <PageImages
+                pageKey={reportId}
                 images={report.images}
                 pageUrl={report.url}
                 linkFilter={linkFilter}
