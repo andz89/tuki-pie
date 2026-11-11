@@ -12,6 +12,7 @@ import path from 'node:path';
 import { startChromeBridge } from './chrome-bridge/chrome-connection';
 import { PairingCode } from './chrome-bridge/pairing-code';
 import { SuggestionSync } from './chrome-bridge/suggestion-sync';
+import { canOpen, readLinkFilter } from '../shared/link-rules';
 import { openDatabase } from './db/db';
 import { registerChromeIpc } from './ipc/chrome.ipc';
 import { registerNotesIpc, registerReminderIpc } from './ipc/notes.ipc';
@@ -68,7 +69,10 @@ import {
 } from './zip/explorer-selection';
 import { ZipSelection, defaultZipDeps } from './zip/zip-selection';
 import { sendNotesChanged } from './windows/notes-window';
-import { setPageInfoOnTop } from './windows/page-info-window';
+import {
+  setCopiedAddressRule,
+  setPageInfoOnTop,
+} from './windows/page-info-window';
 import { showReminders } from './windows/reminder-window';
 import { limitPermissions } from './windows/permissions';
 import { markQuitting } from './windows/quitting';
@@ -156,6 +160,10 @@ function startRuntime(startup: Startup): void {
   });
   const settingsRepository = new SettingsRepository(db);
   const settings = new SettingsService(settingsRepository);
+  // A copied address is checked only if the Links list would offer it.
+  setCopiedAddressRule((address) =>
+    canOpen(address, readLinkFilter(settings.get().linkFilter)),
+  );
   const pairing = new PairingCode(settingsRepository);
   const chromeBridge = startChromeBridge(pairing);
   startup.onQuit(() => void chromeBridge.stop());

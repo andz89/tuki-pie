@@ -6,6 +6,7 @@ const none = {
   copied: null,
   lastCopied: null,
   shown: null,
+  isSafeToOpen: () => true,
 };
 
 describe('chooseStartAddress', () => {
@@ -61,6 +62,29 @@ describe('chooseStartAddress', () => {
         lastCopied: 'https://a.com',
       }),
     ).toBeNull();
+  });
+
+  it('leaves a copied address the link rules would hide', () => {
+    expect(
+      chooseStartAddress({
+        ...none,
+        copied: 'https://a.com/account/delete',
+        isSafeToOpen: (address) => !address.includes('delete'),
+      }),
+    ).toBeNull();
+  });
+
+  it('still checks the active tab, which is already open', () => {
+    expect(
+      chooseStartAddress({
+        ...none,
+        activeTab: 'https://a.com/account/delete',
+        isSafeToOpen: () => false,
+      }),
+    ).toEqual({
+      address: 'https://a.com/account/delete',
+      fromClipboard: false,
+    });
   });
 
   it('does nothing with neither', () => {

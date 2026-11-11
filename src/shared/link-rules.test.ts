@@ -86,8 +86,22 @@ describe('isBlocked with every rule on', () => {
     }
   });
 
-  it('keeps addresses it cannot read', () => {
-    expect(isBlocked('not a url', DEFAULT_LINK_FILTER)).toBe(false);
+  it('hides addresses it cannot read, as it cannot tell what they do', () => {
+    expect(isBlocked('not a url', DEFAULT_LINK_FILTER)).toBe(true);
+  });
+
+  it('finds an action inside a camelCase word', () => {
+    expect(blocked('/user/deleteAccount')).toBe(true);
+    expect(blocked('/api/doLogout')).toBe(true);
+  });
+
+  it('finds an action in a #/ route', () => {
+    expect(blocked('/#/settings/delete')).toBe(true);
+    expect(blocked('/app#!/logout')).toBe(true);
+  });
+
+  it('still keeps ordinary # links', () => {
+    expect(blocked('/guide#install')).toBe(false);
   });
 });
 

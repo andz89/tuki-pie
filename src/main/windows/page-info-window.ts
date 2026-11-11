@@ -64,6 +64,14 @@ async function activeChromeTab(): Promise<string | null> {
   return activeTabAddress(answer);
 }
 
+// Whether a copied address may be checked without a click on it. Set from
+// main.ts with the Links filter; nothing until then.
+let isCopiedSafe: (address: string) => boolean = () => false;
+
+export function setCopiedAddressRule(rule: (address: string) => boolean): void {
+  isCopiedSafe = rule;
+}
+
 // Clicking the slice checks the active Chrome tab, or failing that, a newly
 // copied address. Every check runs in Chrome, so nothing happens without it.
 export async function openPageInfo(): Promise<void> {
@@ -82,6 +90,7 @@ export async function openPageInfo(): Promise<void> {
     copied: addressFromClipboard(copiedText),
     lastCopied: lastCopiedAddress,
     shown: active.state().address,
+    isSafeToOpen: isCopiedSafe,
   });
   if (choice === null || !active.state().chromeConnected) {
     return;

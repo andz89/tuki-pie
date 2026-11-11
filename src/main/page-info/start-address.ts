@@ -9,25 +9,33 @@ export interface StartChoice {
 }
 
 // What clicking the Page Info slice checks, always in Chrome. The active tab
-// comes first, read as it is. Otherwise a newly copied address. Nothing loads
-// again if the window already shows it.
+// comes first, read as it is. Otherwise a newly copied address, if the Links
+// rules would offer it (it opens in your logged-in Chrome without a click on
+// it). Nothing loads again if the window already shows it.
 export function chooseStartAddress({
   activeTab,
   copied,
   lastCopied,
   shown,
+  isSafeToOpen,
 }: {
   activeTab: string | null;
   copied: string | null;
   lastCopied: string | null;
   shown: string | null;
+  isSafeToOpen: (address: string) => boolean;
 }): StartChoice | null {
   if (activeTab !== null) {
     return shown !== null && sameAddress(activeTab, shown)
       ? null
       : { address: activeTab, fromClipboard: false };
   }
-  if (copied !== null && copied !== lastCopied && copied !== shown) {
+  if (
+    copied !== null &&
+    copied !== lastCopied &&
+    copied !== shown &&
+    isSafeToOpen(copied)
+  ) {
     return { address: copied, fromClipboard: true };
   }
   return null;

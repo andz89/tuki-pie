@@ -115,8 +115,10 @@ export function cleanWord(word: string): string | null {
   return joined(clean) === '' ? null : clean;
 }
 
+// "deleteAccount" and "delete-account" both give delete, account.
 const splitWords = (part: string) =>
   part
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
@@ -137,17 +139,32 @@ function matchesAction(parts: string[], word: string): boolean {
   );
 }
 
+// A page app's route after the #, as in "#/settings/delete" or "#!/logout".
+// A plain "#install" jumps within the page, so it doesn't count.
+function hashRoute(hash: string): string[] {
+  if (!/^#!?\//.test(hash)) {
+    return [];
+  }
+  return hash
+    .replace(/^#!?/, '')
+    .split(/[/?&=]/)
+    .filter(Boolean)
+    .map(safeDecode);
+}
+
 export function isBlocked(href: string, filter: LinkFilter): boolean {
   let url: URL;
   try {
     url = new URL(href);
   } catch {
-    return false;
+    // What it would do can't be read, so it isn't offered.
+    return true;
   }
   const query = [...url.searchParams];
   const parts = [
     ...url.pathname.split('/').filter(Boolean).map(safeDecode),
     ...query.flat(),
+    ...hashRoute(url.hash),
   ];
   const lowerParts = parts.map((part) => part.toLowerCase());
   const off = new Set(filter.off);
