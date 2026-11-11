@@ -4,6 +4,7 @@ import {
   clipboard,
   dialog,
   powerMonitor,
+  safeStorage,
   session,
   shell,
 } from 'electron';
@@ -164,7 +165,11 @@ function startRuntime(startup: Startup): void {
   setCopiedAddressRule((address) =>
     canOpen(address, readLinkFilter(settings.get().linkFilter)),
   );
-  const pairing = new PairingCode(settingsRepository);
+  const pairing = new PairingCode(settingsRepository, {
+    isAvailable: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (text) => safeStorage.encryptString(text),
+    decrypt: (data) => safeStorage.decryptString(data),
+  });
   const chromeBridge = startChromeBridge(pairing);
   startup.onQuit(() => void chromeBridge.stop());
   const suggestions = new SuggestionService(new SuggestionRepository(db));
