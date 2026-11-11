@@ -1,0 +1,59 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+.picker {
+  position: fixed;
+  inset: 0;
+  cursor: crosshair;
+  user-select: none;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.picker-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* The huge shadow dims everything around the box, and leaves the box clear. */
+.picker-area {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid #fff;
+  box-shadow: 0 0 0 100000px rgba(0, 0, 0, 0.45);
+}
+
+.picker-size {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.picker-hint {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}

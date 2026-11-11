@@ -1,0 +1,49 @@
+/* The window is exactly the card, so nothing scrolls. */
+html,
+body {
+  overflow: hidden;
+}
+
+.reminder-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  background: var(--surface);
+}
+
+.reminder-item {
+  padding: 12px 14px;
+}
+
+.reminder-item + .reminder-item {
+  border-top: 1px solid var(--line);
+}
+
+.panel .reminder-item h2 {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reminder-preview {
+  margin: 4px 0 0;
+  color: var(--sub);
+  font-size: 13px;
+}
+
+.reminder-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.reminder-buttons button {
+  flex: 1;
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
+  white-space: nowrap;
+}

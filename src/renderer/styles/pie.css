@@ -1,0 +1,841 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.pie-root {
+  --disc: #121418;
+  --tile: #1f2329;
+  --well: #181b20;
+  --edge: rgba(255, 255, 255, 0.07);
+  --well-shade: rgba(0, 0, 0, 0.4);
+  --text: #f2f4f7;
+  --sub: #9aa3af;
+  --orbit-tail: color-mix(in srgb, var(--accent) 45%, transparent);
+  --orbit-body: color-mix(in srgb, var(--accent) 65%, white);
+  --orbit-head: color-mix(in srgb, var(--accent) 12%, white);
+  /* The offset plus blur must stay under the 70px between donut and window edge. */
+  --shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 18px rgba(0, 0, 0, 0.2),
+    0 20px 44px rgba(0, 0, 0, 0.32);
+  --quick: 140ms ease-out;
+  --springy: cubic-bezier(0.2, 1.3, 0.4, 1);
+
+  height: 100%;
+  font-family: Inter, system-ui, sans-serif;
+  user-select: none;
+}
+
+.pie-root[data-theme='light'] {
+  --disc: #e3e6eb;
+  --tile: #ffffff;
+  --well: #f3f4f6;
+  --edge: rgba(0, 0, 0, 0.06);
+  --well-shade: rgba(0, 0, 0, 0.08);
+  --text: #1a1d21;
+  --sub: #5a6270;
+  /* Light can't glow on a pale hub, so the rings get deeper instead. */
+  --orbit-tail: color-mix(in srgb, var(--accent) 40%, transparent);
+  --orbit-body: var(--accent);
+  --orbit-head: color-mix(in srgb, var(--accent) 75%, black);
+}
+
+.pie-backdrop {
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* The donut keeps a square. The window widens beside it for the list. */
+  width: 100vh;
+  height: 100%;
+}
+
+.pie-backdrop[data-dock='left'] {
+  margin-left: auto;
+}
+
+.pie-backdrop[data-dock='left'] .pie-list {
+  --enter-x: 8px;
+}
+
+.pie-menu {
+  position: relative;
+  width: 340px;
+  height: 340px;
+  border-radius: 50%;
+  box-shadow: var(--shadow);
+  transform: scale(var(--pie-scale, 1));
+  cursor: grab;
+  transition: box-shadow 220ms ease-out;
+}
+
+.pie-root[data-pin='pinned'] .pie-menu {
+  box-shadow:
+    var(--shadow),
+    0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent),
+    0 0 26px 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* These use `scale` because `transform` already holds the donut size. */
+.pie-root[data-phase='opening'] .pie-menu {
+  animation: pie-open 170ms var(--springy) both;
+}
+
+/* The window hides 20ms after this ends. See CLOSE_ANIMATION_MS. */
+.pie-root[data-phase='closing'] .pie-menu {
+  animation: pie-close 100ms ease-in both;
+  pointer-events: none;
+}
+
+@keyframes pie-open {
+  from {
+    opacity: 0;
+    scale: 0.85;
+  }
+}
+
+@keyframes pie-close {
+  to {
+    opacity: 0;
+    scale: 0.9;
+  }
+}
+
+/* The rounding also stops presses just outside the circle from reaching it. */
+.pie-ring {
+  display: block;
+  overflow: visible;
+  border-radius: 50%;
+}
+
+.pie-ring-base {
+  fill: var(--disc);
+  stroke: var(--edge);
+  stroke-width: 1px;
+  pointer-events: none;
+  transition: fill 200ms ease-out;
+}
+
+.pie-accent-top {
+  stop-color: color-mix(in srgb, var(--accent) 86%, white);
+}
+
+.pie-accent-bottom {
+  stop-color: color-mix(in srgb, var(--accent) 90%, black);
+}
+
+.pie-slice-icon svg,
+.pie-fan-icon svg {
+  stroke-width: 1.6;
+}
+
+.pie-fan-band {
+  fill: transparent;
+  pointer-events: all;
+}
+
+.pie-fan-circle {
+  color: var(--text);
+  animation: pie-bubble-in 210ms var(--springy) backwards;
+  animation-delay: calc(var(--i, 0) * 25ms);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    transform 130ms var(--springy),
+    color var(--quick);
+}
+
+.pie-fan-circle.is-active {
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+.pie-fan-circle > circle {
+  fill: var(--tile);
+  stroke: var(--edge);
+  stroke-width: 1px;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.3));
+  transition:
+    fill var(--quick),
+    stroke var(--quick);
+}
+
+.pie-fan-circle.is-active > circle {
+  fill: var(--accent);
+  stroke: transparent;
+}
+
+.pie-fan-circle.is-on > circle {
+  stroke: var(--accent);
+  stroke-width: 2px;
+}
+
+.pie-fan-icon {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.pie-fan-image {
+  pointer-events: none;
+}
+
+.pie-fan-letter {
+  fill: currentColor;
+  font-size: 17px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.pie-fan-icon.is-clicked {
+  animation: pie-icon-tilt 280ms var(--springy);
+}
+
+@keyframes pie-bubble-in {
+  from {
+    opacity: 0;
+    scale: 0.4;
+  }
+}
+
+@keyframes pie-icon-tilt {
+  from {
+    rotate: -28deg;
+    scale: 0.7;
+  }
+}
+
+.pie-slice {
+  color: var(--text);
+  cursor: pointer;
+  transition: color var(--quick);
+}
+
+.pie-slice-visual {
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    transform 170ms var(--springy),
+    scale 90ms ease-out;
+}
+
+.pie-slice.is-hovered .pie-slice-visual {
+  transform: translate(var(--lift-x), var(--lift-y));
+}
+
+.pie-slice:has(> .pie-slice-hit:active) .pie-slice-visual {
+  scale: 0.97;
+}
+
+.pie-slice-hit {
+  fill: transparent;
+  pointer-events: all;
+}
+
+.pie-slice-icon {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 170ms var(--springy);
+}
+
+.pie-slice.is-hovered .pie-slice-icon {
+  transform: scale(1.12);
+}
+
+.pie-slice.is-hovered {
+  color: #ffffff;
+}
+
+/* Still hoverable, so the middle can say why it is greyed out. */
+.pie-slice.is-disabled .pie-slice-icon,
+.pie-slice.is-disabled .pie-slice-label {
+  opacity: 0.4;
+}
+
+.pie-slice-fill {
+  fill: var(--tile);
+  stroke: var(--edge);
+  stroke-width: 1px;
+  transition: fill 200ms ease-out;
+}
+
+.pie-slice-highlight {
+  fill: url(#pie-accent-fill);
+  opacity: 0;
+  transition: opacity var(--quick);
+}
+
+.pie-slice-glow {
+  fill: var(--accent);
+  filter: drop-shadow(
+    0 0 10px color-mix(in srgb, var(--accent) 65%, transparent)
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--quick);
+}
+
+.pie-slice-glow.is-lit {
+  opacity: 1;
+}
+
+.pie-slice.is-hovered .pie-slice-highlight {
+  opacity: 1;
+}
+
+.pie-slice-label {
+  fill: var(--sub);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-anchor: middle;
+  dominant-baseline: central;
+  transition: fill var(--quick);
+}
+
+.pie-slice.is-hovered .pie-slice-label {
+  fill: currentColor;
+}
+
+.pie-center {
+  position: absolute;
+  left: 106px;
+  top: 106px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  background: var(--well);
+  box-shadow:
+    inset 0 1px 3px var(--well-shade),
+    0 0 0 1px var(--edge);
+  text-align: center;
+  pointer-events: none;
+  transition: background-color 200ms ease-out;
+}
+
+.pie-orbit {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+
+.pie-orbit[data-level='full'] {
+  opacity: 1;
+}
+
+/* Any stronger and a passing streak makes the small subtitle hard to read. */
+.pie-orbit[data-level='dim'] {
+  opacity: 0.3;
+}
+
+/* Nothing keeps moving once it's out of sight, or while the donut is closed. */
+.pie-orbit[data-level='off'] *,
+.pie-root[data-phase='closing'] .pie-orbit * {
+  animation-play-state: paused;
+}
+
+.pie-orbit-bloom {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--accent) 38%, transparent),
+    transparent
+  );
+  animation: pie-orbit-breathe 5s ease-in-out infinite alternate;
+}
+
+/* Tilting a circle backward is what turns it into an ellipse. */
+.pie-orbit-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--size);
+  height: var(--size);
+  translate: -50% -50%;
+  transform: rotate(var(--angle)) rotateX(var(--tilt));
+}
+
+/* The arc spins inside its tilted ring, so the streak follows the ellipse. */
+.pie-orbit-arc {
+  --band: 2.5px;
+
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    transparent 0 30%,
+    var(--orbit-tail) 62%,
+    var(--orbit-body) 90%,
+    var(--orbit-head) 97%,
+    transparent 100%
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--band)),
+    #000 calc(100% - var(--band) + 0.5px)
+  );
+  animation: pie-orbit-lap var(--lap) linear infinite;
+  animation-delay: calc(var(--start) * -1);
+}
+
+.pie-orbit-arc.is-glow {
+  --band: 8px;
+
+  filter: blur(3px);
+  opacity: 0.7;
+}
+
+.pie-orbit-spark {
+  position: absolute;
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  background: var(--orbit-head);
+  box-shadow: 0 0 5px var(--orbit-body);
+  opacity: 0.9;
+  translate: -50% -50%;
+  animation: pie-orbit-twinkle 3.2s ease-in-out infinite;
+  animation-delay: calc(var(--start) * -1);
+}
+
+@keyframes pie-orbit-lap {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes pie-orbit-breathe {
+  from {
+    opacity: 0.55;
+  }
+}
+
+@keyframes pie-orbit-twinkle {
+  50% {
+    opacity: 0.1;
+    scale: 0.5;
+  }
+}
+
+.pie-center-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.pie-center-text,
+.pie-center-error {
+  position: relative;
+  animation: pie-text-in 130ms ease-out;
+}
+
+@keyframes pie-text-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+.pie-center-label {
+  display: -webkit-box;
+  max-width: 108px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* The zip's name box. The middle ignores the mouse, so this takes it back. */
+.pie-zip-name {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: auto;
+  animation: pie-text-in 130ms ease-out;
+}
+
+.pie-zip-name-label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pie-zip-name-input {
+  box-sizing: border-box;
+  width: 100px;
+  padding: 4px 7px;
+  border: 1px solid var(--edge);
+  border-radius: 7px;
+  outline: none;
+  background: var(--tile);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+}
+
+.pie-zip-name-input::placeholder {
+  color: var(--sub);
+}
+
+.pie-zip-name-input:focus {
+  border-color: var(--accent);
+}
+
+.pie-zip-name-hint {
+  color: var(--sub);
+  font-size: 10.5px;
+}
+
+.pie-center-error {
+  max-width: 104px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.pie-center-type {
+  display: -webkit-box;
+  max-width: 108px;
+  overflow: hidden;
+  color: var(--sub);
+  font-size: 11.5px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Shortcuts open as a list card instead of a row of circles. */
+.pie-list-dock {
+  position: absolute;
+  top: 50%;
+  width: 250px;
+  height: 440px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Starts just past the donut's edge, 62 px in from its square's side. */
+.pie-backdrop[data-dock='right'] .pie-list-dock {
+  left: calc(100% - 62px * var(--pie-scale, 1));
+  transform: translateY(-50%) scale(var(--pie-scale, 1));
+  transform-origin: left center;
+}
+
+.pie-backdrop[data-dock='left'] .pie-list-dock {
+  right: calc(100% - 62px * var(--pie-scale, 1));
+  transform: translateY(-50%) scale(var(--pie-scale, 1));
+  transform-origin: right center;
+}
+
+.pie-list {
+  --row-hover: color-mix(in srgb, var(--text) 7%, transparent);
+
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--disc) 94%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.25),
+    0 16px 36px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font-size: 12.5px;
+  pointer-events: auto;
+  cursor: default;
+  animation: pie-list-in 170ms var(--springy) both;
+}
+
+@keyframes pie-list-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+    translate: var(--enter-x, -8px) 0;
+  }
+}
+
+.pie-list-items,
+.pie-list-children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pie-list-items {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text) 25%, transparent) transparent;
+}
+
+.pie-list-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: pie-text-in 160ms ease-out backwards;
+  animation-delay: calc(var(--i, 0) * 18ms);
+  transition: background-color var(--quick);
+}
+
+.pie-list-row:hover,
+.pie-list-row:focus-visible {
+  outline: none;
+  background: var(--row-hover);
+}
+
+.pie-list-row.is-nested {
+  padding-left: 30px;
+}
+
+.pie-list-tile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: linear-gradient(
+    color-mix(in srgb, var(--accent) 86%, white),
+    color-mix(in srgb, var(--accent) 90%, black)
+  );
+  color: #ffffff;
+}
+
+.pie-list-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pie-list-label,
+.pie-list-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pie-list-label {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.pie-list-detail {
+  color: var(--sub);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.pie-list-action {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity var(--quick);
+}
+
+.pie-list-row:hover .pie-list-action,
+.pie-list-row:focus-visible .pie-list-action {
+  opacity: 1;
+}
+
+.pie-list-group,
+.pie-list-entry {
+  position: relative;
+}
+
+.pie-list-group .pie-list-row {
+  gap: 7px;
+  padding-right: 34px;
+}
+
+.pie-list-entry .pie-list-row {
+  padding-right: 34px;
+}
+
+.pie-list-chevron {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--sub);
+  transition: rotate 150ms ease-out;
+}
+
+.pie-list-group.is-open .pie-list-chevron {
+  rotate: 90deg;
+}
+
+.pie-list-folder {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+}
+
+.pie-list-count {
+  flex: none;
+  color: var(--sub);
+  font-size: 11.5px;
+}
+
+/* Sits over the end of the group row, where the count leaves room for it. */
+.pie-list-add-inside {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sub);
+  cursor: pointer;
+  opacity: 0;
+  translate: 0 -50%;
+  transition:
+    opacity var(--quick),
+    background-color var(--quick),
+    color var(--quick);
+}
+
+.pie-list-group:hover .pie-list-add-inside,
+.pie-list-entry:hover .pie-list-add-inside,
+.pie-list-add-inside:focus-visible {
+  opacity: 1;
+}
+
+.pie-list-group:hover .pie-list-count {
+  visibility: hidden;
+}
+
+.pie-list-add-inside:hover {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
+}
+
+.pie-list-empty {
+  padding: 10px 8px;
+  color: var(--sub);
+}
+
+.pie-list-empty.is-nested {
+  padding: 6px 8px 6px 30px;
+}
+
+.pie-list-foot {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-top: 1px solid var(--edge);
+}
+
+.pie-list-foot-button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--quick);
+}
+
+.pie-list-foot-button:hover {
+  background: color-mix(in srgb, var(--accent) 80%, transparent);
+  color: #ffffff;
+}
+
+/* A locked slice: the others fade back and no longer answer the mouse. */
+.pie-ring[data-locked] .pie-slice:not(.is-locked) {
+  opacity: 0.45;
+  transition: opacity 160ms ease-out;
+}
+
+.pie-lock {
+  cursor: pointer;
+  animation: pie-bubble-in 210ms var(--springy) backwards;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.pie-lock circle {
+  fill: var(--accent);
+  stroke: color-mix(in srgb, white 70%, transparent);
+  stroke-width: 1px;
+}
+
+.pie-lock path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pie-lock:hover circle {
+  fill: color-mix(in srgb, var(--accent) 80%, white);
+}
+
+/* Windows reports this when its animation effects are switched off. */
+@media (prefers-reduced-motion: reduce) {
+  .pie-root * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,0 +1,256 @@
+.notes {
+  display: grid;
+  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
+  height: 100vh;
+}
+
+/* The list */
+
+.notes-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.notes-side-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.notes-search {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.notes-search input {
+  padding-left: 30px;
+}
+
+.notes-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  display: flex;
+  color: var(--sub);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.panel .notes-new {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+}
+
+.notes-list {
+  flex: 1;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.panel .notes-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.panel .notes-item:hover {
+  background: var(--control);
+}
+
+.panel .notes-item.is-open {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.notes-item-title {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-item-bell {
+  color: var(--sub);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.notes-item-preview {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--sub);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-item-preview:empty {
+  display: none;
+}
+
+.notes-empty-list {
+  margin: 12px;
+  color: var(--sub);
+  font-size: 13px;
+}
+
+/* The editor */
+
+.notes-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+}
+
+.panel input.notes-title {
+  border-color: transparent;
+  background: transparent;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.panel input.notes-title:hover,
+.panel input.notes-title:focus {
+  border-color: var(--line);
+}
+
+.panel .notes-body {
+  flex: 1;
+  min-height: 120px;
+  line-height: 1.5;
+  resize: none;
+}
+
+.notes-reminder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 6px 6px 12px;
+  border-radius: 8px;
+  background: var(--control);
+  font-size: 13px;
+}
+
+.notes-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel .notes-delete {
+  margin-left: auto;
+}
+
+.panel .notes-delete:hover:not(:disabled) {
+  background: var(--danger-surface);
+  color: var(--danger-text);
+}
+
+.notes-blank {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--sub);
+}
+
+.notes-blank p {
+  margin: 0;
+}
+
+/* Remind me */
+
+.reminder-menu {
+  position: relative;
+}
+
+.reminder-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 280px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+}
+
+.reminder-repeat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sub);
+  font-size: 13px;
+}
+
+.reminder-repeat select {
+  flex: 1;
+}
+
+.reminder-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.panel .reminder-pick {
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.panel .reminder-pick:hover {
+  background: var(--control);
+}
+
+.reminder-custom {
+  display: flex;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.reminder-custom input {
+  flex: 1;
+  min-width: 0;
+}
+
+.notes .panel-error {
+  margin: 0;
+}
+
+@media (max-width: 600px) {
+  .notes {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+}

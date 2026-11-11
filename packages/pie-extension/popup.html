@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Pie Launcher</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --page: #ffffff;
+        --text: #1a1d21;
+        --sub: #5a6270;
+        --line: rgba(0, 0, 0, 0.15);
+        --ok: #15803d;
+        --warn: #b45309;
+        --accent: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --page: #15181c;
+          --text: #f2f4f7;
+          --sub: #a9b1bc;
+          --line: rgba(255, 255, 255, 0.15);
+          --ok: #4ade80;
+          --warn: #fbbf24;
+        }
+      }
+      body {
+        width: 300px;
+        margin: 0;
+        padding: 14px;
+        background: var(--page);
+        color: var(--text);
+        font:
+          13px/1.4 system-ui,
+          sans-serif;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+      #status {
+        margin: 0 0 12px;
+        font-weight: 600;
+      }
+      #status[data-state='connected'] {
+        color: var(--ok);
+      }
+      #status:not([data-state='connected']) {
+        color: var(--warn);
+      }
+      #status-note {
+        margin: -8px 0 12px;
+        color: var(--sub);
+      }
+      label {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--sub);
+      }
+      input {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      button {
+        padding: 6px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+      button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #ffffff;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Pie Launcher</h1>
+    <p id="status" role="status"></p>
+    <p id="status-note"></p>
+    <form id="pair">
+      <label for="code">Pairing code, from Pie Launcher Settings</label>
+      <input id="code" type="password" autocomplete="off" spellcheck="false" />
+      <div class="row">
+        <button type="submit" class="primary">Save</button>
+        <button type="button" id="connect" hidden>Connect</button>
+      </div>
+    </form>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

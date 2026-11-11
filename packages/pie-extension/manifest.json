@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Pie Launcher",
+  "description": "Lets Pie Launcher's Page Info read websites in Chrome, and offers your saved suggestions under fields.",
+  "version": "1.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxYF8lfmqkIbYvl2niXhPTiKNhuVK+2H7yZcHafyFMu0YDViTndNaY9Mgfh/kRyHscWtYgDnQfH3B9ITIMMI3d3rTa5qc4cSrHDd7ssNMYWhMixv8eG/jhL6C8wuPZiS9Krfss6wC/sWdjSwqr5r6yBxC0e3aYstP1LHA8PHvDUmWal6bYUfSN840xeIfxv++kXnSqCe4IO0hrbtXg0UHURH9UO0dRp6zwsjCKFDqlY9/wHgb01yzhhWuMoRZvnXJmbzUcaYg7nHko7+yXoahFQsGZEo98+KSY15o0WqIUhA3XQoSdUHqnAq3+glZ9gxdKwUhJqJSVyzDJsVq61bhoQIDAQAB",
+  "minimum_chrome_version": "116",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Pie Launcher",
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "scripting",
+    "storage",
+    "alarms",
+    "webNavigation",
+    "debugger"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["suggest.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}

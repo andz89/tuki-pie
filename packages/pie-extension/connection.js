@@ -1,0 +1,217 @@
+import { isNonce, randomNonce, sameText, sign } from './crypto.js';
+import {
+  ACTIONS,
+  CLOSE,
+  MAX_MESSAGE_BYTES,
+  MSG,
+  PING_MS,
+  PORT,
+  TOO_LARGE,
+  appProofText,
+  extProofText,
+} from './protocol.js';
+
+// Extensions can't accept connections, so the service worker connects out to
+// Pie Launcher. Its state is saved as `pieStatus` for the popup:
+//   no-code | connected | not-connected | bad-code | replaced
+
+// Quick retries after a drop, then the 30-second alarm takes over.
+const RETRY_DELAYS_MS = [1000, 3000, 10000];
+// These wait for a new code, Connect, or Chrome starting, never a timer.
+const WAITING = new Set(['bad-code', 'replaced']);
+const OPEN = 1;
+const encoder = new TextEncoder();
+
+const asText = (data) => (typeof data === 'string' ? data : String(data));
+
+function parse(data) {
+  try {
+    return JSON.parse(asText(data));
+  } catch {
+    return null;
+  }
+}
+
+// Only the fixed list of actions can run. Nothing the app sends is ever run
+// as a script.
+export function createRequestHandler(actions) {
+  return async (action, args) => {
+    if (!ACTIONS.includes(action) || !Object.hasOwn(actions, action)) {
+      return { ok: false, error: 'unknown-action' };
+    }
+    try {
+      return { ok: true, result: (await actions[action](args)) ?? null };
+    } catch {
+      return { ok: false, error: 'failed' };
+    }
+  };
+}
+
+export function replyText(id, reply) {
+  const text = JSON.stringify({ type: MSG.REPLY, id, ...reply });
+  // A character takes at most 3 bytes, so most replies skip the count.
+  if (
+    text.length * 3 > MAX_MESSAGE_BYTES &&
+    encoder.encode(text).length > MAX_MESSAGE_BYTES
+  ) {
+    return JSON.stringify({ type: MSG.REPLY, id, ok: false, error: TOO_LARGE });
+  }
+  return text;
+}
+
+export function createConnection({ openSocket, storage, onRequest }) {
+  let socket = null;
+  let isReady = false;
+  let connecting = false;
+  let reconnectPending = false;
+  let retryAttempt = 0;
+  let retryTimer;
+  let pingTimer;
+
+  const setStatus = (status) => storage.set({ pieStatus: status });
+
+  const send = (ws, message) => {
+    if (ws.readyState === OPEN) {
+      ws.send(typeof message === 'string' ? message : JSON.stringify(message));
+    }
+  };
+
+  function scheduleRetry() {
+    if (retryAttempt >= RETRY_DELAYS_MS.length) {
+      return;
+    }
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(
+      () => void connect(),
+      RETRY_DELAYS_MS[retryAttempt],
+    );
+    retryAttempt += 1;
+  }
+
+  function open(code) {
+    const ws = openSocket(`ws://127.0.0.1:${PORT}`);
+    socket = ws;
+    isReady = false;
+    const extNonce = randomNonce();
+    let appNonce = null;
+    let hasProved = false;
+    let refusedApp = false;
+    // Signing is async, so messages are handled one at a time, in order.
+    let queue = Promise.resolve();
+
+    const handle = async (message) => {
+      if (socket !== ws || message === null) {
+        return;
+      }
+      if (!isReady) {
+        if (
+          message.type === MSG.CHALLENGE &&
+          appNonce === null &&
+          isNonce(message.nonce)
+        ) {
+          appNonce = message.nonce;
+          const expected = await sign(code, appProofText(extNonce, appNonce));
+          // An app that can't prove the code never gets this side's proof.
+          if (!sameText(message.proof, expected)) {
+            refusedApp = true;
+            ws.close();
+            return;
+          }
+          send(ws, {
+            type: MSG.PROOF,
+            proof: await sign(code, extProofText(appNonce, extNonce)),
+          });
+          hasProved = true;
+        } else if (message.type === MSG.READY && hasProved) {
+          isReady = true;
+          retryAttempt = 0;
+          await setStatus('connected');
+          clearInterval(pingTimer);
+          pingTimer = setInterval(() => send(ws, { type: MSG.PING }), PING_MS);
+        }
+        return;
+      }
+      if (message.type === MSG.REQUEST && typeof message.id === 'string') {
+        const reply = await onRequest(message.action, message.args);
+        send(ws, replyText(message.id, reply));
+      }
+    };
+
+    ws.onopen = () => send(ws, { type: MSG.HELLO, nonce: extNonce });
+    ws.onmessage = (event) => {
+      const message = parse(event.data);
+      queue = queue.then(() => handle(message)).catch(() => undefined);
+    };
+    ws.onerror = () => undefined;
+    ws.onclose = (event) => {
+      if (socket !== ws) {
+        return;
+      }
+      socket = null;
+      isReady = false;
+      clearInterval(pingTimer);
+      const status =
+        refusedApp || event.code === CLOSE.BAD_CODE
+          ? 'bad-code'
+          : event.code === CLOSE.REPLACED
+            ? 'replaced'
+            : 'not-connected';
+      void setStatus(status);
+      if (status === 'not-connected') {
+        scheduleRetry();
+      }
+    };
+  }
+
+  async function connect({ force = false } = {}) {
+    if (connecting || socket) {
+      return;
+    }
+    connecting = true;
+    try {
+      const { pieCode, pieStatus } = await storage.get([
+        'pieCode',
+        'pieStatus',
+      ]);
+      if (!force && WAITING.has(pieStatus)) {
+        return;
+      }
+      if (typeof pieCode !== 'string' || pieCode === '') {
+        await setStatus('no-code');
+        return;
+      }
+      open(pieCode);
+    } finally {
+      connecting = false;
+      if (reconnectPending) {
+        reconnectPending = false;
+        reconnect();
+      }
+    }
+  }
+
+  // A new code, Connect, or Chrome starting: try again even after being
+  // replaced or refused.
+  function reconnect() {
+    if (connecting) {
+      reconnectPending = true;
+      return;
+    }
+    const old = socket;
+    socket = null;
+    isReady = false;
+    clearInterval(pingTimer);
+    clearTimeout(retryTimer);
+    retryAttempt = 0;
+    old?.close();
+    void connect({ force: true });
+  }
+
+  function sendEvent(name) {
+    if (socket && isReady) {
+      send(socket, { type: MSG.EVENT, name });
+    }
+  }
+
+  return { connect, reconnect, sendEvent };
+}
