@@ -226,7 +226,12 @@ export class PageInfoController {
     if (connected === this.update.chromeConnected) {
       return;
     }
-    this.apply({ chromeConnected: connected });
+    // Back again: the message saying it was gone is no longer true.
+    const message =
+      connected && this.update.message === CHROME_OFF
+        ? null
+        : this.update.message;
+    this.apply({ chromeConnected: connected, message });
     if (!connected && this.update.address !== null) {
       this.endPage({ message: CHROME_OFF });
     }

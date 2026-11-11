@@ -520,6 +520,16 @@ describe('checking in Chrome', () => {
     });
   });
 
+  it('drops the not-connected message once Chrome is back', async () => {
+    await inChrome();
+    controller.setChromeConnected(false);
+    controller.setChromeConnected(true);
+    expect(controller.state()).toMatchObject({
+      message: null,
+      chromeConnected: true,
+    });
+  });
+
   it('ignores an answer that arrives after Chrome disconnected', async () => {
     controller.check('example.com');
     controller.sitePageCommitted();
