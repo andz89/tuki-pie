@@ -1,4 +1,11 @@
-import { Notification, app, clipboard, powerMonitor, shell } from 'electron';
+import {
+  Notification,
+  app,
+  clipboard,
+  dialog,
+  powerMonitor,
+  shell,
+} from 'electron';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import { startChromeBridge } from './chrome-bridge/chrome-connection';
@@ -45,6 +52,7 @@ import {
   startShortcuts,
   stopShortcuts,
 } from './shortcuts/shortcuts';
+import { Startup } from './startup';
 import { createTray } from './tray/tray';
 import { isNavigationAllowed } from './windows/navigation';
 import { openPanelWindow } from './windows/panel-window';
@@ -102,120 +110,129 @@ function startApp(): void {
     app.quit();
   });
 
-  app.whenReady().then(() => {
-    const { db, isNew } = openDatabase(
-      path.join(app.getPath('userData'), 'pie.db'),
-    );
-    const allowedApps = new AllowedAppRepository(db);
-    const shortcutRepository = new ShortcutRepository(db);
-    const slices = new SliceService(
-      new SliceRepository(db),
-      allowedApps,
-      kindOfPath,
-      (target) => shell.openPath(target),
-      (target) => shortcutRepository.findAppByTarget(target)?.label,
-    );
-    const shortcuts = new ShortcutService(
-      shortcutRepository,
-      allowedApps,
-      kindOfPath,
-      (target) => shell.openPath(target),
-      (url) => shell.openExternal(url),
-    );
-    const snippets = new SnippetService(new SnippetRepository(db), (text) =>
-      clipboard.writeText(text),
-    );
-    const notes = new NoteService(new NoteRepository(db));
-    const reminders = new ReminderScheduler(notes, showReminders);
-    notes.onChanged(() => {
-      reminders.refresh();
-      sendNotesChanged();
-    });
-    const settingsRepository = new SettingsRepository(db);
-    const settings = new SettingsService(settingsRepository);
-    const pairing = new PairingCode(settingsRepository);
-    const chromeBridge = startChromeBridge(pairing);
-    const suggestions = new SuggestionService(new SuggestionRepository(db));
-    const suggestionSync = new SuggestionSync({
-      list: () => suggestions.list(),
-      isEnabled: () => settings.get().suggestionsInChrome === 'on',
-      bridge: chromeBridge,
-    });
-    suggestions.onChanged(() => suggestionSync.push());
-    const zipSelection = new ZipSelection({
-      ...defaultZipDeps,
-      frontExplorerWindow,
-      readSelection: readExplorerSelection,
-      announce: (zipFile, count) => {
-        if (!Notification.isSupported()) {
-          return;
-        }
-        const notice = new Notification({
-          title: 'Zip saved',
-          body: `${count} ${count === 1 ? 'image' : 'images'} in ${path.basename(zipFile)}. Click to show it.`,
-          silent: true,
-        });
-        notice.on('click', () => shell.showItemInFolder(zipFile));
-        notice.show();
-      },
-    });
-    setBeforePieOpens(() => zipSelection.noteFrontWindow());
+  const startup = new Startup();
+  // Registered before anything starts, so a quit at any point stops what ran.
+  app.on('will-quit', () => startup.cleanUp());
 
-    if (isNew) {
-      seedFirstRun(settings);
-    }
+  app.whenReady().then(() =>
+    startup.run(() => startRuntime(startup), {
+      showError: (message) =>
+        dialog.showErrorBox('Pie Launcher could not start', message),
+      exit: (code) => app.exit(code),
+    }),
+  );
+}
 
-    registerWindowIpc();
-    registerSliceIpc(slices);
-    registerShortcutIpc(shortcuts, slices);
-    registerSnippetIpc(snippets);
-    registerSuggestionIpc(suggestions);
-    registerNotesIpc(notes);
-    registerReminderIpc(notes);
-    registerPageInfoIpc(settings);
-    registerScreenshotIpc();
-    registerZipIpc(zipSelection);
-    registerSettingsIpc(settings, () => suggestionSync.push());
-    registerPanelIpc(slices);
-    registerVolumeIpc();
-    registerChromeIpc(pairing, chromeBridge);
-
-    createPieWindow();
-    setPieSize(settings.get().size);
-    setPiePin(settings.get().pin);
-    setPageInfoOnTop(settings.get().pageInfoOnTop);
-    createTray({ openSettings: openPanelWindow, quit: () => app.quit() });
-    startShortcuts();
-    try {
-      setOpenKeys(settings.get().openKeys);
-    } catch (error) {
-      // Another app took the keys since. The other ways to open still work.
-      console.warn('Could not register the open keys:', error);
-    }
-    // Written on every start, so the entry follows the app when it updates.
-    if (app.isPackaged && process.platform === 'win32') {
-      installShellMenu(process.execPath);
-    }
-    // Reminders missed while the app was closed show now.
+function startRuntime(startup: Startup): void {
+  const { db, isNew } = openDatabase(
+    path.join(app.getPath('userData'), 'pie.db'),
+  );
+  startup.onQuit(() => db.close());
+  const allowedApps = new AllowedAppRepository(db);
+  const shortcutRepository = new ShortcutRepository(db);
+  const slices = new SliceService(
+    new SliceRepository(db),
+    allowedApps,
+    kindOfPath,
+    (target) => shell.openPath(target),
+    (target) => shortcutRepository.findAppByTarget(target)?.label,
+  );
+  const shortcuts = new ShortcutService(
+    shortcutRepository,
+    allowedApps,
+    kindOfPath,
+    (target) => shell.openPath(target),
+    (url) => shell.openExternal(url),
+  );
+  const snippets = new SnippetService(new SnippetRepository(db), (text) =>
+    clipboard.writeText(text),
+  );
+  const notes = new NoteService(new NoteRepository(db));
+  const reminders = new ReminderScheduler(notes, showReminders);
+  startup.onQuit(() => reminders.stop());
+  notes.onChanged(() => {
     reminders.refresh();
-    // A computer waking from sleep catches up on reminders right away.
-    powerMonitor.on('resume', () => reminders.refresh());
-
-    app.on('will-quit', () => {
-      stopShortcuts();
-      reminders.stop();
-      void chromeBridge.stop();
-      db.close();
-    });
-
-    if (isNew) {
-      openPanelWindow();
-    }
-    // Started from the right-click menu while not running.
-    if (process.argv.includes(OPEN_PIE_FLAG)) {
-      openPieAtCursor();
-    }
+    sendNotesChanged();
   });
+  const settingsRepository = new SettingsRepository(db);
+  const settings = new SettingsService(settingsRepository);
+  const pairing = new PairingCode(settingsRepository);
+  const chromeBridge = startChromeBridge(pairing);
+  startup.onQuit(() => void chromeBridge.stop());
+  const suggestions = new SuggestionService(new SuggestionRepository(db));
+  const suggestionSync = new SuggestionSync({
+    list: () => suggestions.list(),
+    isEnabled: () => settings.get().suggestionsInChrome === 'on',
+    bridge: chromeBridge,
+  });
+  suggestions.onChanged(() => suggestionSync.push());
+  const zipSelection = new ZipSelection({
+    ...defaultZipDeps,
+    frontExplorerWindow,
+    readSelection: readExplorerSelection,
+    announce: (zipFile, count) => {
+      if (!Notification.isSupported()) {
+        return;
+      }
+      const notice = new Notification({
+        title: 'Zip saved',
+        body: `${count} ${count === 1 ? 'image' : 'images'} in ${path.basename(zipFile)}. Click to show it.`,
+        silent: true,
+      });
+      notice.on('click', () => shell.showItemInFolder(zipFile));
+      notice.show();
+    },
+  });
+  setBeforePieOpens(() => zipSelection.noteFrontWindow());
+
+  if (isNew) {
+    seedFirstRun(settings);
+  }
+
+  registerWindowIpc();
+  registerSliceIpc(slices);
+  registerShortcutIpc(shortcuts, slices);
+  registerSnippetIpc(snippets);
+  registerSuggestionIpc(suggestions);
+  registerNotesIpc(notes);
+  registerReminderIpc(notes);
+  registerPageInfoIpc(settings);
+  registerScreenshotIpc();
+  registerZipIpc(zipSelection);
+  registerSettingsIpc(settings, () => suggestionSync.push());
+  registerPanelIpc(slices);
+  registerVolumeIpc();
+  registerChromeIpc(pairing, chromeBridge);
+
+  createPieWindow();
+  setPieSize(settings.get().size);
+  setPiePin(settings.get().pin);
+  setPageInfoOnTop(settings.get().pageInfoOnTop);
+  createTray({ openSettings: openPanelWindow, quit: () => app.quit() });
+  startShortcuts();
+  startup.onQuit(stopShortcuts);
+  try {
+    setOpenKeys(settings.get().openKeys);
+  } catch (error) {
+    // Another app took the keys since. The other ways to open still work.
+    console.warn('Could not register the open keys:', error);
+  }
+  // Written on every start, so the entry follows the app when it updates.
+  if (app.isPackaged && process.platform === 'win32') {
+    installShellMenu(process.execPath);
+  }
+  // Reminders missed while the app was closed show now.
+  reminders.refresh();
+  // A computer waking from sleep catches up on reminders right away.
+  powerMonitor.on('resume', () => reminders.refresh());
+
+  if (isNew) {
+    openPanelWindow();
+  }
+  // Started from the right-click menu while not running.
+  if (process.argv.includes(OPEN_PIE_FLAG)) {
+    openPieAtCursor();
+  }
 }
 
 // Uninstalling: take the right-click menu entry away too.

@@ -171,6 +171,15 @@ describe('migrate', () => {
     expect(db.prepare('SELECT * FROM one').columns()).toHaveLength(2);
   });
 
+  it('refuses a database made by a newer version of the app', () => {
+    const db = new Database(':memory:');
+    db.pragma('user_version = 3');
+    expect(() => migrate(db, ['CREATE TABLE one (n);'])).toThrow(
+      /newer version/,
+    );
+    expect(db.pragma('user_version', { simple: true })).toBe(3);
+  });
+
   it('undoes a migration that fails partway', () => {
     const db = new Database(':memory:');
     expect(() =>
