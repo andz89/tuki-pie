@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { MAX_APPS } from '../../shared/schemas/shortcut.schema';
-import { usePieStore } from '../stores/pie.store';
+import { appIconKey, usePieStore } from '../stores/pie.store';
 import { PieFanRow } from './PieFanRow';
 import type { FanCircle } from './PieFanRow';
 import { firstLetter } from './shortcut-row';
@@ -24,16 +24,16 @@ export function PieAppsFan({ middle }: { middle: number }) {
   }, [loadShortcuts]);
 
   useEffect(() => {
-    for (const { id, type } of shortcuts) {
+    for (const { id, type, target } of shortcuts) {
       if (type === 'app') {
-        void loadAppIcon(id);
+        void loadAppIcon(id, target);
       }
     }
   }, [shortcuts, loadAppIcon]);
 
   const circles: FanCircle[] = apps.map((app) => ({
     id: app.id,
-    image: appIcons[app.id] ?? undefined,
+    image: appIcons[appIconKey(app.id, app.target)] ?? undefined,
     letter: firstLetter(app.label),
     label: app.label,
     value: 'Open app',

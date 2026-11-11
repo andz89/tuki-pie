@@ -141,6 +141,7 @@ export interface CircleHint {
 interface PieState {
   shortcuts: Shortcut[];
   // Each app shortcut's own icon, once read: an image address, or null.
+  // By appIconKey. Null while the read is on its way.
   appIcons: Record<string, string | null>;
   snippets: Snippet[];
   // Images selected in Explorer when the donut opened. null: still asking.
@@ -158,7 +159,7 @@ interface PieState {
   notice: string | null;
   load: () => Promise<void>;
   loadShortcuts: () => Promise<void>;
-  loadAppIcon: (id: string) => Promise<void>;
+  loadAppIcon: (id: string, target: string | null) => Promise<void>;
   loadSnippets: () => Promise<void>;
   loadZipCount: () => Promise<void>;
   startZip: () => void;
@@ -182,6 +183,11 @@ interface PieState {
   close: () => void;
   dismiss: () => void;
   opened: () => void;
+}
+
+export function appIconKey(id: string, target: string | null): string {
+  return `${id}
+${target ?? ''}`;
 }
 
 export const usePieStore = create<PieState>()((set, get) => ({
@@ -229,17 +235,24 @@ export const usePieStore = create<PieState>()((set, get) => ({
     }
   },
 
-  // Read once per app. A failed read shows the app's first letter instead.
-  loadAppIcon: async (id) => {
-    if (id in get().appIcons) {
+  // Read once per app and file, so an edited app gets its new icon. A failed
+  // read shows the app's first letter, and is tried again next time.
+  loadAppIcon: async (id, target) => {
+    const key = appIconKey(id, target);
+    if (key in get().appIcons) {
       return;
     }
-    set((state) => ({ appIcons: { ...state.appIcons, [id]: null } }));
+    set((state) => ({ appIcons: { ...state.appIcons, [key]: null } }));
     const result = await bridge.shortcuts.icon(id);
-    if (result.ok && result.value) {
-      const icon = result.value;
-      set((state) => ({ appIcons: { ...state.appIcons, [id]: icon } }));
-    }
+    set((state) => {
+      const appIcons = { ...state.appIcons };
+      if (result.ok && result.value) {
+        appIcons[key] = result.value;
+      } else {
+        delete appIcons[key];
+      }
+      return { appIcons };
+    });
   },
 
   loadSnippets: async () => {

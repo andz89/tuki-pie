@@ -9,7 +9,7 @@ import {
   ZIP_INDEX,
 } from '../components/slice-display';
 import { bridge } from '../api/bridge';
-import { usePieStore } from './pie.store';
+import { appIconKey, usePieStore } from './pie.store';
 import { useSettingsStore } from './settings.store';
 
 vi.mock('../api/bridge', () => ({
@@ -542,11 +542,44 @@ describe('locking a slice', () => {
 });
 
 describe('app icons', () => {
-  it('reads each app icon once and keeps it', async () => {
+  beforeEach(() => {
+    vi.mocked(bridge.shortcuts.icon).mockClear();
     usePieStore.setState({ appIcons: {} });
-    await store().loadAppIcon('app-1');
-    await store().loadAppIcon('app-1');
-    expect(store().appIcons['app-1']).toBe('data:image/png;base64,AA');
+  });
+
+  it('reads each app icon once and keeps it', async () => {
+    await store().loadAppIcon('app-1', 'C:\a.exe');
+    await store().loadAppIcon('app-1', 'C:\a.exe');
+    expect(store().appIcons[appIconKey('app-1', 'C:\a.exe')]).toBe(
+      'data:image/png;base64,AA',
+    );
+    expect(bridge.shortcuts.icon).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the icon again once the app points somewhere else', async () => {
+    await store().loadAppIcon('app-1', 'C:\a.exe');
+    await store().loadAppIcon('app-1', 'C:\b.exe');
+    expect(bridge.shortcuts.icon).toHaveBeenCalledTimes(2);
+  });
+
+  it('tries again next time when reading failed', async () => {
+    vi.mocked(bridge.shortcuts.icon).mockResolvedValueOnce({
+      ok: false,
+      error: 'busy',
+    });
+    await store().loadAppIcon('app-1', 'C:\a.exe');
+    expect(store().appIcons[appIconKey('app-1', 'C:\a.exe')]).toBeUndefined();
+    await store().loadAppIcon('app-1', 'C:\a.exe');
+    expect(store().appIcons[appIconKey('app-1', 'C:\a.exe')]).toBe(
+      'data:image/png;base64,AA',
+    );
+  });
+
+  it('asks once while a read is still on its way', async () => {
+    await Promise.all([
+      store().loadAppIcon('app-1', 'C:\a.exe'),
+      store().loadAppIcon('app-1', 'C:\a.exe'),
+    ]);
     expect(bridge.shortcuts.icon).toHaveBeenCalledTimes(1);
   });
 });
