@@ -473,3 +473,40 @@ describe('the allowed list after a shortcut goes', () => {
     expect(allowedApps.has(APP)).toBe(true);
   });
 });
+
+describe('saving from the settings window', () => {
+  it('approves an app, then saves it', () => {
+    service.addApproved(app);
+    expect(allowedApps.has(APP)).toBe(true);
+    expect(service.list().map(({ label }) => label)).toEqual(['Editor']);
+  });
+
+  it('approves nothing when a new app cannot be saved', () => {
+    const missing = { ...app, target: 'C:/Apps/missing.exe' };
+    expect(() => service.addApproved(missing)).toThrow();
+    expect(allowedApps.has(missing.target)).toBe(false);
+  });
+
+  it('approves the new target of an edited app', () => {
+    const OTHER = 'C:/Apps/other.exe';
+    kinds[OTHER] = 'file';
+    const [item] = service.addApproved(app);
+    service.updateApproved({ id: item.id, label: 'Editor', target: OTHER });
+    expect(allowedApps.has(OTHER)).toBe(true);
+    expect(allowedApps.has(APP)).toBe(false);
+  });
+
+  it('approves nothing when an edited app cannot be saved', () => {
+    const [item] = service.addApproved(app);
+    const typo = 'C:/typo.exe';
+    expect(() =>
+      service.updateApproved({ id: item.id, label: 'Editor', target: typo }),
+    ).toThrow();
+    expect(allowedApps.has(typo)).toBe(false);
+  });
+
+  it('approves nothing for a link', () => {
+    service.addApproved(link('Mail'));
+    expect(allowedApps.findAll()).toEqual([]);
+  });
+});

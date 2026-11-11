@@ -102,6 +102,26 @@ export class ShortcutService {
     return this.list();
   }
 
+  // From the settings window only (see ipc-access.ts), so saving an app or
+  // path there counts as the person approving it. Nothing is approved when
+  // the shortcut can't be saved.
+  addApproved(item: NewShortcut): Shortcut[] {
+    this.assertCanAdd(item);
+    if (item.type === 'app' || item.type === 'path') {
+      this.allowedApps.add(item.target);
+    }
+    return this.add(item);
+  }
+
+  updateApproved(edit: ShortcutEdit): Shortcut[] {
+    this.assertCanUpdate(edit);
+    const type = this.existing(edit.id).type;
+    if ((type === 'app' || type === 'path') && edit.target !== null) {
+      this.allowedApps.add(edit.target);
+    }
+    return this.update(edit);
+  }
+
   remove(id: string): Shortcut[] {
     const shortcut = this.shortcuts.findById(id);
     if (!shortcut) {

@@ -49,6 +49,7 @@ import {
   removeShellMenu,
 } from './shell-menu/shell-menu';
 import { setOpenKeys } from './shortcuts/open-keys';
+import { shortcutIcons } from './shortcuts/shortcut-icon';
 import {
   openPieAtCursor,
   startShortcuts,
@@ -211,7 +212,13 @@ function startRuntime(startup: Startup): void {
   }
 
   registerWindowIpc();
-  registerShortcutIpc(shortcuts, slices);
+  registerShortcutIpc(
+    shortcuts,
+    shortcutIcons(
+      (id) => shortcuts.find(id),
+      path.join(app.getPath('userData'), 'icon-cache'),
+    ),
+  );
   registerSnippetIpc(snippets);
   registerSuggestionIpc(suggestions);
   registerNotesIpc(notes);

@@ -1,5 +1,3 @@
-import { app, nativeImage, shell } from 'electron';
-import path from 'node:path';
 import { z } from 'zod';
 import { IpcChannels } from '../../shared/ipc-channels';
 import {
@@ -10,10 +8,6 @@ import {
   ShortcutEdit,
 } from '../../shared/schemas/shortcut.schema';
 import type { ShortcutService } from '../services/shortcut.service';
-import type { SliceService } from '../services/slice.service';
-import { readAppIcon } from '../shortcuts/app-icon';
-import { cachedIconReader } from '../shortcuts/icon-cache';
-import { shellIconOf } from '../shortcuts/shell-icon';
 import { takePanelFormRequest } from '../windows/panel-window';
 import { handle } from './handle';
 
@@ -22,59 +16,25 @@ const Id = Shortcut.shape.id;
 // checks the exact row, this only bounds the message.
 const MAX_ROW = Math.max(MAX_APPS, MAX_SHORTCUTS_PER_ROW);
 
+// `iconOf` reads an app shortcut's icon by its id; see shortcut-icon.ts.
 export function registerShortcutIpc(
   shortcuts: ShortcutService,
-  slices: SliceService,
+  iconOf: (id: string) => Promise<string | null>,
 ): void {
-  // Store-app icons take a PowerShell each: one at a time, kept on disk.
-  const shellIcon = cachedIconReader(
-    shellIconOf,
-    path.join(app.getPath('userData'), 'icon-cache'),
-  );
-
   handle(IpcChannels.shortcutsList, z.tuple([]), () => shortcuts.list());
 
   // Takes an id, never an address: the address comes from the database.
   handle(IpcChannels.shortcutsOpen, z.tuple([Id]), (id) => shortcuts.open(id));
 
-  // Read from the saved app's file, so the donut can't ask about any other.
-  handle(IpcChannels.shortcutsIcon, z.tuple([Id]), async (id) => {
-    const shortcut = shortcuts.find(id);
-    if (shortcut?.type !== 'app' || !shortcut.target) {
-      return null;
-    }
-    return readAppIcon(shortcut.target, {
-      readLink: (path) => shell.readShortcutLink(path),
-      imageOf: async (path) => {
-        const image = nativeImage.createFromPath(path);
-        return image.isEmpty() ? null : image.toDataURL();
-      },
-      iconOf: async (path) => {
-        const icon = await app.getFileIcon(path, { size: 'large' });
-        return icon.isEmpty() ? null : icon.toDataURL();
-      },
-      shellIconOf: shellIcon,
-    });
-  });
+  handle(IpcChannels.shortcutsIcon, z.tuple([Id]), (id) => iconOf(id));
 
-  // The add and update messages only come from the settings window, so saving
-  // an app there counts as the person approving it.
-  handle(IpcChannels.panelShortcutAdd, z.tuple([NewShortcut]), (item) => {
-    shortcuts.assertCanAdd(item);
-    if (item.type === 'app' || item.type === 'path') {
-      slices.allowApp(item.target);
-    }
-    return shortcuts.add(item);
-  });
+  handle(IpcChannels.panelShortcutAdd, z.tuple([NewShortcut]), (item) =>
+    shortcuts.addApproved(item),
+  );
 
-  handle(IpcChannels.panelShortcutUpdate, z.tuple([ShortcutEdit]), (edit) => {
-    shortcuts.assertCanUpdate(edit);
-    const type = shortcuts.find(edit.id)?.type;
-    if ((type === 'app' || type === 'path') && edit.target !== null) {
-      slices.allowApp(edit.target);
-    }
-    return shortcuts.update(edit);
-  });
+  handle(IpcChannels.panelShortcutUpdate, z.tuple([ShortcutEdit]), (edit) =>
+    shortcuts.updateApproved(edit),
+  );
 
   handle(IpcChannels.panelShortcutRemove, z.tuple([Id]), (id) =>
     shortcuts.remove(id),

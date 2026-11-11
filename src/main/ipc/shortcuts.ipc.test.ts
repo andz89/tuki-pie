@@ -2,8 +2,6 @@ import { ipcMain } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IpcChannels } from '../../shared/ipc-channels';
 import type { ShortcutService } from '../services/shortcut.service';
-import type { SliceService } from '../services/slice.service';
-import { UserError } from '../services/user-error';
 import { takePanelFormRequest } from '../windows/panel-window';
 import { registerShortcutIpc } from './shortcuts.ipc';
 import { eventFor } from './fake-sender';
@@ -20,15 +18,13 @@ const shortcuts = {
   list: vi.fn(() => []),
   find: vi.fn(),
   open: vi.fn(async () => undefined),
-  assertCanAdd: vi.fn(),
-  assertCanUpdate: vi.fn(),
-  add: vi.fn(() => []),
-  update: vi.fn(() => []),
+  addApproved: vi.fn(() => []),
+  updateApproved: vi.fn(() => []),
   remove: vi.fn(() => []),
   reorder: vi.fn(() => []),
   move: vi.fn(() => []),
 };
-const slices = { allowApp: vi.fn() };
+const iconOf = vi.fn(async (_id: string) => 'data:image/png;base64,AA');
 
 function handlerFor(channel: string) {
   const call = vi
@@ -48,10 +44,7 @@ const link = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  registerShortcutIpc(
-    shortcuts as unknown as ShortcutService,
-    slices as unknown as SliceService,
-  );
+  registerShortcutIpc(shortcuts as unknown as ShortcutService, iconOf);
 });
 
 describe('shortcut messages', () => {
@@ -73,55 +66,6 @@ describe('shortcut messages', () => {
     expect(shortcuts.open).not.toHaveBeenCalled();
   });
 
-  it('approves an app before saving it', async () => {
-    await handlerFor(IpcChannels.panelShortcutAdd)(
-      eventFor(IpcChannels.panelShortcutAdd),
-      app,
-    );
-    expect(slices.allowApp).toHaveBeenCalledExactlyOnceWith('C:\\e.exe');
-    expect(slices.allowApp.mock.invocationCallOrder[0]).toBeLessThan(
-      shortcuts.add.mock.invocationCallOrder[0],
-    );
-  });
-
-  it('approves nothing when a new app cannot be saved', async () => {
-    shortcuts.assertCanAdd.mockImplementationOnce(() => {
-      throw new UserError('Nothing found at that path.');
-    });
-    await expect(
-      handlerFor(IpcChannels.panelShortcutAdd)(
-        eventFor(IpcChannels.panelShortcutAdd),
-        app,
-      ),
-    ).resolves.toEqual({ ok: false, error: 'Nothing found at that path.' });
-    expect(slices.allowApp).not.toHaveBeenCalled();
-    expect(shortcuts.add).not.toHaveBeenCalled();
-  });
-
-  it('approves nothing when an edited app cannot be saved', async () => {
-    shortcuts.find.mockReturnValue({ type: 'app' });
-    shortcuts.assertCanUpdate.mockImplementationOnce(() => {
-      throw new UserError('Nothing found at that path.');
-    });
-    await expect(
-      handlerFor(IpcChannels.panelShortcutUpdate)(
-        eventFor(IpcChannels.panelShortcutUpdate),
-        { id: 'a', label: 'E', target: 'C:\\typo.exe' },
-      ),
-    ).resolves.toEqual({ ok: false, error: 'Nothing found at that path.' });
-    expect(slices.allowApp).not.toHaveBeenCalled();
-    expect(shortcuts.update).not.toHaveBeenCalled();
-  });
-
-  it('does not approve anything for a link', async () => {
-    await handlerFor(IpcChannels.panelShortcutAdd)(
-      eventFor(IpcChannels.panelShortcutAdd),
-      link,
-    );
-    expect(slices.allowApp).not.toHaveBeenCalled();
-    expect(shortcuts.add).toHaveBeenCalledOnce();
-  });
-
   it('rejects a file link without saving', async () => {
     await expect(
       handlerFor(IpcChannels.panelShortcutAdd)(
@@ -129,26 +73,34 @@ describe('shortcut messages', () => {
         { ...link, target: 'file:///C:/a' },
       ),
     ).rejects.toThrow();
-    expect(shortcuts.add).not.toHaveBeenCalled();
+    expect(shortcuts.addApproved).not.toHaveBeenCalled();
   });
 
-  it('approves the new path when an app shortcut is edited', async () => {
-    shortcuts.find.mockReturnValue({ type: 'app' });
+  it('saves from the settings window through the approving service', async () => {
+    await handlerFor(IpcChannels.panelShortcutAdd)(
+      eventFor(IpcChannels.panelShortcutAdd),
+      app,
+    );
     await handlerFor(IpcChannels.panelShortcutUpdate)(
       eventFor(IpcChannels.panelShortcutUpdate),
-      { id: 'a', label: 'E', target: 'C:\\new.exe' },
+      { id: 'a', label: 'E', target: 'C:/new.exe' },
     );
-    expect(slices.allowApp).toHaveBeenCalledExactlyOnceWith('C:\\new.exe');
-    expect(shortcuts.update).toHaveBeenCalledOnce();
+    expect(shortcuts.addApproved).toHaveBeenCalledExactlyOnceWith(app);
+    expect(shortcuts.updateApproved).toHaveBeenCalledExactlyOnceWith({
+      id: 'a',
+      label: 'E',
+      target: 'C:/new.exe',
+    });
   });
 
-  it('does not approve a link that is edited', async () => {
-    shortcuts.find.mockReturnValue({ type: 'link' });
-    await handlerFor(IpcChannels.panelShortcutUpdate)(
-      eventFor(IpcChannels.panelShortcutUpdate),
-      { id: 'a', label: 'L', target: 'C:\\evil.exe' },
-    );
-    expect(slices.allowApp).not.toHaveBeenCalled();
+  it('reads an icon by id only', async () => {
+    await expect(
+      handlerFor(IpcChannels.shortcutsIcon)(
+        eventFor(IpcChannels.shortcutsIcon),
+        'abc',
+      ),
+    ).resolves.toEqual({ ok: true, value: 'data:image/png;base64,AA' });
+    expect(iconOf).toHaveBeenCalledExactlyOnceWith('abc');
   });
 
   it('passes the row and order when moving', async () => {
