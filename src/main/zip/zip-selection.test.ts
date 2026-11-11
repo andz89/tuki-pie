@@ -18,7 +18,9 @@ function makeSelection(overrides: Partial<ZipDeps> = {}) {
         inFolder('notes.txt'),
         inFolder('b.jpg'),
       ]),
-    exists: (file) => !file.endsWith('.zip'),
+    isFile: () => true,
+    reserve: () => true,
+    release: vi.fn().mockResolvedValue(undefined),
     writeZip: vi.fn().mockResolvedValue(undefined),
     announce: vi.fn(),
     ...overrides,
@@ -76,7 +78,7 @@ describe('ZipSelection', () => {
 
   it('numbers a name that is taken instead of replacing it', async () => {
     const { selection } = makeSelection({
-      exists: (file) => file !== inFolder('Holiday (2).zip'),
+      reserve: (file) => file === inFolder('Holiday (2).zip'),
     });
     selection.noteFrontWindow();
     expect(await selection.zip('Holiday')).toBe(inFolder('Holiday (2).zip'));
@@ -84,7 +86,7 @@ describe('ZipSelection', () => {
 
   it('skips images deleted since the donut opened', async () => {
     const { selection, deps } = makeSelection({
-      exists: (file) => file === inFolder('b.jpg'),
+      isFile: (file) => file === inFolder('b.jpg'),
     });
     selection.noteFrontWindow();
     await selection.zip('x');
@@ -113,5 +115,21 @@ describe('ZipSelection', () => {
       new UserError(SAVE_FAILED),
     );
     expect(deps.announce).not.toHaveBeenCalled();
+    expect(deps.release).toHaveBeenCalledWith(inFolder('x.zip'));
+  });
+
+  it('leaves out a folder named like a picture', async () => {
+    const { selection, deps } = makeSelection({
+      readSelection: vi
+        .fn()
+        .mockResolvedValue([inFolder('trip.jpg'), inFolder('b.jpg')]),
+      isFile: (file) => file !== inFolder('trip.jpg'),
+    });
+    selection.noteFrontWindow();
+    await selection.zip('x');
+    expect(deps.writeZip).toHaveBeenCalledWith(
+      [inFolder('b.jpg')],
+      inFolder('x.zip'),
+    );
   });
 });

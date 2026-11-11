@@ -1,4 +1,4 @@
-import { createWriteStream } from 'node:fs';
+import { closeSync, createWriteStream, openSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -8,6 +8,8 @@ import yazl from 'yazl';
 const IMAGE_EXTENSIONS = new Set([
   '.jpg',
   '.jpeg',
+  '.jpe',
+  '.jfif',
   '.png',
   '.gif',
   '.webp',
@@ -25,6 +27,8 @@ const IMAGE_EXTENSIONS = new Set([
 const STORED_EXTENSIONS = new Set([
   '.jpg',
   '.jpeg',
+  '.jpe',
+  '.jfif',
   '.png',
   '.gif',
   '.webp',
@@ -64,17 +68,32 @@ export function cleanZipName(typed: string): string {
   return name || ZIP_BASE_NAME;
 }
 
-// "Name.zip", or "Name (2).zip" and up when that name is taken.
-export function freeZipPath(
+// Creates an empty file at `file`, only if nothing is there yet. Holding the
+// name this way means two zips started at once can't pick the same one.
+export function reserveFile(file: string): boolean {
+  try {
+    closeSync(openSync(file, 'wx'));
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+// "Name.zip", or "Name (2).zip" and up when that name is taken. `reserve`
+// takes the name and says whether it got it.
+export function reserveZipPath(
   folder: string,
   baseName: string,
-  exists: (file: string) => boolean,
+  reserve: (file: string) => boolean,
 ): string {
   for (let number = 1; ; number++) {
     const name =
       number === 1 ? `${baseName}.zip` : `${baseName} (${number}).zip`;
     const file = path.join(folder, name);
-    if (!exists(file)) {
+    if (reserve(file)) {
       return file;
     }
   }

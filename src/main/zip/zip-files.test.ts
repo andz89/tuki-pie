@@ -6,8 +6,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   cleanZipName,
   entryNames,
-  freeZipPath,
   isImageFile,
+  reserveFile,
+  reserveZipPath,
   writeZip,
 } from './zip-files';
 
@@ -18,6 +19,11 @@ describe('isImageFile', () => {
     expect(isImageFile('C:\\a\\logo.svg')).toBe(true);
   });
 
+  it('knows the other JPEG endings', () => {
+    expect(isImageFile('C:\\a\\photo.jfif')).toBe(true);
+    expect(isImageFile('C:\\a\\photo.JPE')).toBe(true);
+  });
+
   it('leaves out everything else', () => {
     expect(isImageFile('C:\\a\\report.pdf')).toBe(false);
     expect(isImageFile('C:\\a\\folder')).toBe(false);
@@ -25,11 +31,11 @@ describe('isImageFile', () => {
   });
 });
 
-describe('freeZipPath', () => {
+describe('reserveZipPath', () => {
   const folder = path.join('C:', 'Pics');
 
   it('uses the name as it is when free', () => {
-    expect(freeZipPath(folder, 'Holiday', () => false)).toBe(
+    expect(reserveZipPath(folder, 'Holiday', () => true)).toBe(
       path.join(folder, 'Holiday.zip'),
     );
   });
@@ -39,8 +45,33 @@ describe('freeZipPath', () => {
       path.join(folder, 'Images.zip'),
       path.join(folder, 'Images (2).zip'),
     ]);
-    expect(freeZipPath(folder, 'Images', (file) => taken.has(file))).toBe(
+    expect(reserveZipPath(folder, 'Images', (file) => !taken.has(file))).toBe(
       path.join(folder, 'Images (3).zip'),
+    );
+  });
+});
+
+describe('reserveFile', () => {
+  let folder: string;
+
+  afterEach(async () => {
+    await rm(folder, { recursive: true, force: true });
+  });
+
+  it('gives two zips started with one name two files', () => {
+    folder = mkdtempSync(path.join(tmpdir(), 'pie-zip-'));
+    const first = reserveZipPath(folder, 'Images', reserveFile);
+    const second = reserveZipPath(folder, 'Images', reserveFile);
+    expect(first).toBe(path.join(folder, 'Images.zip'));
+    expect(second).toBe(path.join(folder, 'Images (2).zip'));
+  });
+
+  it('never takes a name that is already there', () => {
+    folder = mkdtempSync(path.join(tmpdir(), 'pie-zip-'));
+    writeFileSync(path.join(folder, 'Images.zip'), 'keep me');
+    expect(reserveFile(path.join(folder, 'Images.zip'))).toBe(false);
+    expect(readFileSync(path.join(folder, 'Images.zip'), 'utf8')).toBe(
+      'keep me',
     );
   });
 });
