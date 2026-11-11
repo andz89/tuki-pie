@@ -17,6 +17,11 @@ export function setWindowRole(contents: WebContents, role: WindowRole): void {
   roles.set(contents, role);
 }
 
+// Whether this is one of the app's own windows, not a site.
+export function hasWindowRole(contents: WebContents): boolean {
+  return roles.has(contents);
+}
+
 const SETTINGS_READERS: WindowRole[] = [
   'pie',
   'panel',

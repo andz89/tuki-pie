@@ -4,6 +4,7 @@ import {
   clipboard,
   dialog,
   powerMonitor,
+  session,
   shell,
 } from 'electron';
 import started from 'electron-squirrel-startup';
@@ -69,6 +70,7 @@ import { ZipSelection, defaultZipDeps } from './zip/zip-selection';
 import { sendNotesChanged } from './windows/notes-window';
 import { setPageInfoOnTop } from './windows/page-info-window';
 import { showReminders } from './windows/reminder-window';
+import { limitPermissions } from './windows/permissions';
 import { markQuitting } from './windows/quitting';
 import { applySiteRules, isSiteSession } from './windows/site-window';
 
@@ -120,6 +122,8 @@ function startApp(): void {
 }
 
 function startRuntime(startup: Startup): void {
+  // Before any window loads. The site viewer's session has its own rules.
+  limitPermissions(session.defaultSession);
   const { db, isNew } = openDatabase(
     path.join(app.getPath('userData'), 'pie.db'),
   );
