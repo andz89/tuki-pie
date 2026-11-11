@@ -146,7 +146,7 @@ export function PageScreenshot({
             title="Show at full size"
             onClick={() => viewerRef.current?.showModal()}
           >
-            <img src={shot.dataUrl} alt="The whole page" />
+            <img src={shot.imageUrl} alt="The whole page" />
           </button>
           {/* A click anywhere, or Escape, closes it. */}
           <dialog
@@ -155,7 +155,7 @@ export function PageScreenshot({
             aria-label="Screenshot at full size"
             onClick={() => viewerRef.current?.close()}
           >
-            <img src={shot.dataUrl} alt="The whole page" />
+            <img src={shot.imageUrl} alt="The whole page" />
           </dialog>
         </>
       )}

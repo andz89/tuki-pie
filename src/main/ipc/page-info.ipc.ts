@@ -47,6 +47,24 @@ const NOTHING_LOADED: PageInfoUpdate = {
   reportId: 0,
 };
 
+// The dashboard tile shows the top of the page, 150 px tall. A full-page
+// picture can be tens of megabytes, so it gets a small JPEG of just that.
+const THUMB_WIDTH = 480;
+// Height to width of the cropped top, a little taller than the tile.
+const THUMB_SHAPE = 0.75;
+
+function dashboardThumb(image: Electron.NativeImage): string {
+  const { width, height } = image.getSize();
+  const top = image.crop({
+    x: 0,
+    y: 0,
+    width,
+    height: Math.min(height, Math.round(width * THUMB_SHAPE)),
+  });
+  const jpeg = top.resize({ width: THUMB_WIDTH }).toJPEG(70);
+  return `data:image/jpeg;base64,${jpeg.toString('base64')}`;
+}
+
 export function registerPageInfoIpc(settings: SettingsService): void {
   handle(
     IpcChannels.pageInfoGetState,
@@ -84,6 +102,7 @@ export function registerPageInfoIpc(settings: SettingsService): void {
         return {
           ...image.getSize(),
           dataUrl: shot.dataUrl,
+          thumbDataUrl: dashboardThumb(image),
           bytes: jpegBytes(shot.dataUrl).length,
           stitched: shot.stitched,
           stitchReason: shot.stitchReason,

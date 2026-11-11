@@ -123,8 +123,10 @@ describe('Link filters', () => {
 });
 
 describe('the Screenshot tab', () => {
-  const SHOT = {
+  // What main sends, and what the window keeps of it.
+  const TAKEN = {
     dataUrl: 'data:image/jpeg;base64,AAAA',
+    thumbDataUrl: 'data:image/jpeg;base64,BB',
     width: 1280,
     height: 9000,
     bytes: 3,
@@ -132,6 +134,8 @@ describe('the Screenshot tab', () => {
     stitchReason: null,
     device: '',
   };
+  const { dataUrl: _dataUrl, ...KEPT } = TAKEN;
+  const SHOT = { ...KEPT, imageUrl: 'blob:kept' };
   const REPORT = {} as NonNullable<PageInfoUpdate['report']>;
   const checked = update({
     status: 'done',
@@ -155,17 +159,21 @@ describe('the Screenshot tab', () => {
   it('keeps the picture once taken', async () => {
     vi.mocked(pageInfoBridge.capture).mockResolvedValue({
       ok: true,
-      value: SHOT,
+      value: TAKEN,
     });
     await store().takeScreenshot();
     expect(pageInfoBridge.capture).toHaveBeenCalledOnce();
-    expect(store().screenshot).toMatchObject({ status: 'done', shot: SHOT });
+    expect(store().screenshot).toMatchObject({
+      status: 'done',
+      shot: { ...KEPT, imageUrl: expect.stringMatching(/^blob:/) },
+    });
+    expect(store().screenshot.shot).not.toHaveProperty('dataUrl');
   });
 
   it('asks for the size picked in the menu', async () => {
     vi.mocked(pageInfoBridge.capture).mockResolvedValue({
       ok: true,
-      value: SHOT,
+      value: TAKEN,
     });
     store().setCaptureSize({ device: 'Pixel 9' });
     store().setCaptureSize({ reload: true });
@@ -179,7 +187,7 @@ describe('the Screenshot tab', () => {
   it('asks only once while one is being taken', async () => {
     vi.mocked(pageInfoBridge.capture).mockResolvedValue({
       ok: true,
-      value: SHOT,
+      value: TAKEN,
     });
     await Promise.all([store().takeScreenshot(), store().takeScreenshot()]);
     expect(pageInfoBridge.capture).toHaveBeenCalledOnce();
@@ -242,6 +250,22 @@ describe('the Screenshot tab', () => {
       shot: null,
       problem: 'The page changed. Try again.',
     });
+  });
+
+  it('lets the old picture go when the page changes', async () => {
+    const listener = await listen();
+    vi.mocked(pageInfoBridge.capture).mockResolvedValue({
+      ok: true,
+      value: TAKEN,
+    });
+    await store().takeScreenshot();
+    const kept = store().screenshot.shot?.imageUrl;
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+    listener(
+      update({ status: 'done', address: 'https://b.com/', report: REPORT }),
+    );
+    expect(revoke).toHaveBeenCalledWith(kept);
+    revoke.mockRestore();
   });
 
   it('says where Save put it', async () => {

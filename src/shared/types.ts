@@ -104,6 +104,8 @@ export interface PageScreenshot {
   stitchReason: string | null;
   // The device it was taken as, or "" for the tab as it is.
   device: string;
+  // A small picture of the top, for the dashboard.
+  thumbDataUrl: string;
 }
 
 // The size picked before taking one. reload: load the page as the device

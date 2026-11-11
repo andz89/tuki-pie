@@ -231,7 +231,7 @@ function ScreenshotTile({
           aria-label="Open the screenshot"
           onClick={open}
         >
-          <img src={shot.dataUrl} alt="" />
+          <img src={shot.thumbDataUrl} alt="" />
         </button>
       ) : (
         <div className="dash-shot is-empty">

@@ -10,10 +10,33 @@ import type {
 } from '../../shared/types';
 import { pageInfoBridge } from './page-info-bridge';
 
+// What the window keeps of a screenshot. The full picture can be tens of
+// megabytes as a data: address; one blob address serves every <img> instead.
+export type ShownScreenshot = Omit<PageScreenshot, 'dataUrl'> & {
+  imageUrl: string;
+};
+
+function shownScreenshot({
+  dataUrl,
+  ...rest
+}: PageScreenshot): ShownScreenshot {
+  const [head, base64 = ''] = dataUrl.split(',', 2);
+  const type = /^data:([^;,]+)/.exec(head)?.[1] ?? 'image/jpeg';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return {
+    ...rest,
+    imageUrl: URL.createObjectURL(new Blob([bytes], { type })),
+  };
+}
+
 // The Screenshot tab. Only the button takes one, never opening the tab.
 export interface ScreenshotState {
   status: 'none' | 'taking' | 'done';
-  shot: PageScreenshot | null;
+  shot: ShownScreenshot | null;
   problem: string | null;
   // What Save or Copy just did, shown under the buttons.
   notice: string | null;
@@ -149,7 +172,12 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
     const now = get().screenshot;
     set({
       screenshot: result.ok
-        ? { status: 'done', shot: result.value, problem: null, notice: null }
+        ? {
+            status: 'done',
+            shot: shownScreenshot(result.value),
+            problem: null,
+            notice: null,
+          }
         : {
             ...now,
             status: now.shot ? 'done' : 'none',
@@ -181,3 +209,11 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
     });
   },
 }));
+
+// A picture the window no longer shows gives its memory back.
+usePageInfoStore.subscribe((state, previous) => {
+  const old = previous.screenshot.shot?.imageUrl;
+  if (old && old !== state.screenshot.shot?.imageUrl) {
+    URL.revokeObjectURL(old);
+  }
+});

@@ -11,10 +11,15 @@ import {
 import { registerPageInfoIpc } from './page-info.ipc';
 import { eventFor } from './fake-sender';
 
+const thumb = {
+  resize: vi.fn(() => thumb),
+  toJPEG: vi.fn(() => Buffer.from('thumb')),
+};
 const image = {
   isEmpty: () => false,
   getSize: () => ({ width: 1280, height: 9000 }),
   toPNG: () => new Uint8Array([1]),
+  crop: vi.fn(() => thumb),
 };
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
@@ -163,10 +168,25 @@ describe('the page screenshot', () => {
         stitched: false,
         stitchReason: null,
         device: 'iPhone 16',
+        thumbDataUrl: `data:image/jpeg;base64,${Buffer.from('thumb').toString('base64')}`,
       },
     });
     expect(controller.capture).toHaveBeenCalledWith(SIZE);
     expect(focusPageInfoWindow).toHaveBeenCalled();
+  });
+
+  it('makes a small picture of the top of the page for the dashboard', async () => {
+    await handlerFor(IpcChannels.pageInfoCapture)(
+      eventFor(IpcChannels.pageInfoCapture),
+      SIZE,
+    );
+    expect(image.crop).toHaveBeenCalledWith({
+      x: 0,
+      y: 0,
+      width: 1280,
+      height: 960,
+    });
+    expect(thumb.resize).toHaveBeenCalledWith({ width: 480 });
   });
 
   it('refuses a size that is not on the list', async () => {
