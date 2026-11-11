@@ -12,6 +12,9 @@ export const JPEG_QUALITY = 80;
 // Taller pictures are scaled down. A JPEG can't pass 65,535 pixels, and
 // Chrome may leave very tall captures blank.
 export const MAX_IMAGE_HEIGHT = 30000;
+// The tallest view the debugger is asked to draw, in CSS pixels. An endless
+// page would otherwise ask Chrome for a view hundreds of thousands tall.
+export const MAX_CAPTURE_HEIGHT = 60000;
 export const COMMAND_MS = 30000;
 // Chrome allows about two captureVisibleTab calls per second.
 export const CAPTURE_GAP_MS = 600;
@@ -289,6 +292,7 @@ export function createCapture({ chrome }) {
     let startY = 0;
     let resized = false;
     let reloaded = false;
+    let timedOut = false;
     try {
       startY = Number(await evaluate('scrollY')) || 0;
       if (device) {
@@ -308,7 +312,10 @@ export function createCapture({ chrome }) {
         ? { width: device.width, deviceScaleFactor: 1, mobile: true }
         : { width: before.width, deviceScaleFactor: 0, mobile: false };
       const resize = (height) =>
-        send('Emulation.setDeviceMetricsOverride', { ...view, height });
+        send('Emulation.setDeviceMetricsOverride', {
+          ...view,
+          height: Math.min(height, MAX_CAPTURE_HEIGHT),
+        });
       await resize(before.height);
       resized = true;
       await evaluate('scrollTo(0, 0)');
@@ -316,8 +323,11 @@ export function createCapture({ chrome }) {
       // Sections sized to the screen grow with it, so measure again.
       const after = await contentSize();
       const { width } = view;
-      const height = Math.max(before.height, after.height);
-      if (height > before.height) {
+      const height = Math.min(
+        Math.max(before.height, after.height),
+        MAX_CAPTURE_HEIGHT,
+      );
+      if (height > Math.min(before.height, MAX_CAPTURE_HEIGHT)) {
         await resize(height);
         await sleep(RESIZE_SETTLE_MS);
       }
@@ -328,8 +338,13 @@ export function createCapture({ chrome }) {
         clip: { x: 0, y: 0, width, height, scale },
       });
       return { dataUrl: `data:image/jpeg;base64,${data}`, method: 'debugger' };
+    } catch (error) {
+      timedOut = error instanceof TimeoutError;
+      throw error;
     } finally {
-      if (resized) {
+      // A hung page would make each cleanup command wait COMMAND_MS as well.
+      // Detaching alone ends the size, touch and user agent changes.
+      if (resized && !timedOut) {
         await send('Emulation.clearDeviceMetricsOverride').catch(
           () => undefined,
         );
@@ -348,15 +363,26 @@ export function createCapture({ chrome }) {
 
   async function stitch(tabId, windowId) {
     const startY = (await run(tabId, scrollThrough, [0])) ?? 0;
-    const frames = [];
-    let measure;
+    // Each screen is drawn the moment it is taken and then freed, so only
+    // one is ever held: 80 full screens at once could take gigabytes.
+    let canvas = null;
+    let context = null;
+    let ratio = 1;
+    let shrink = 1;
+    let cropWidth = 0;
+    // How far down the picture the screens reached.
+    let drawnTo = 0;
     try {
       let target = 0;
       let lastCapture = 0;
       let previousShot = null;
       let previousY = null;
       for (let i = 0; i < MAX_FRAMES; i++) {
-        measure = await run(tabId, scrollAndMeasure, [target]);
+        const measure = await run(tabId, scrollAndMeasure, [target]);
+        // The page won't scroll any further, so there is nothing new below.
+        if (i > 0 && measure.y <= previousY) {
+          break;
+        }
         let shot = null;
         // The page moved but the picture didn't: Chrome isn't drawing the
         // window (hidden behind others), so it hands back its last frame.
@@ -378,7 +404,40 @@ export function createCapture({ chrome }) {
         const bitmap = await createImageBitmap(
           await (await fetch(shot)).blob(),
         );
-        frames.push({ y: measure.y, bitmap });
+        try {
+          if (canvas === null) {
+            // Image pixels per CSS pixel (screen scaling, page zoom).
+            ratio = bitmap.width / measure.viewportWidth;
+            cropWidth = Math.round(measure.contentWidth * ratio);
+            const pageHeight = Math.min(
+              measure.pageHeight,
+              MAX_FRAMES * measure.viewportHeight,
+            );
+            const fullHeight = Math.round(pageHeight * ratio);
+            shrink = fitScale(fullHeight);
+            canvas = new OffscreenCanvas(
+              Math.round(cropWidth * shrink),
+              Math.round(fullHeight * shrink),
+            );
+            context = canvas.getContext('2d');
+          }
+          const top = Math.round(measure.y * ratio * shrink);
+          const height = Math.round(bitmap.height * shrink);
+          context.drawImage(
+            bitmap,
+            0,
+            0,
+            cropWidth,
+            bitmap.height,
+            0,
+            top,
+            canvas.width,
+            height,
+          );
+          drawnTo = Math.max(drawnTo, Math.min(canvas.height, top + height));
+        } finally {
+          bitmap.close();
+        }
         if (i === 0) {
           await run(tabId, hideFloating);
         }
@@ -391,31 +450,13 @@ export function createCapture({ chrome }) {
       await run(tabId, restorePage, [startY]).catch(() => undefined);
     }
 
-    // Image pixels per CSS pixel (screen scaling, page zoom).
-    const ratio = frames[0].bitmap.width / measure.viewportWidth;
-    const cropWidth = Math.round(measure.contentWidth * ratio);
-    const fullHeight = Math.round(measure.pageHeight * ratio);
-    const shrink = fitScale(fullHeight);
-    const canvas = new OffscreenCanvas(
-      Math.round(cropWidth * shrink),
-      Math.round(fullHeight * shrink),
-    );
-    const context = canvas.getContext('2d');
-    for (const { y, bitmap } of frames) {
-      context.drawImage(
-        bitmap,
-        0,
-        0,
-        cropWidth,
-        bitmap.height,
-        0,
-        Math.round(y * ratio * shrink),
-        canvas.width,
-        Math.round(bitmap.height * shrink),
-      );
-      bitmap.close();
+    // A page that stopped scrolling early would leave a blank bottom.
+    let picture = canvas;
+    if (drawnTo < canvas.height) {
+      picture = new OffscreenCanvas(canvas.width, drawnTo);
+      picture.getContext('2d').drawImage(canvas, 0, 0);
     }
-    const blob = await canvas.convertToBlob({
+    const blob = await picture.convertToBlob({
       type: 'image/jpeg',
       quality: JPEG_QUALITY / 100,
     });

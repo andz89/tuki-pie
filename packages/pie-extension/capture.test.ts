@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  COMMAND_MS,
+  MAX_CAPTURE_HEIGHT,
   MAX_IMAGE_HEIGHT,
   STALE_RETRIES,
   createCapture,
@@ -103,6 +105,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('capturing through the debugger', () => {
@@ -197,6 +200,42 @@ describe('capturing through the debugger', () => {
     );
     const params = call?.[2] as unknown as { clip: { scale: number } };
     expect(40000 * 1.5 * params.clip.scale).toBeCloseTo(MAX_IMAGE_HEIGHT);
+  });
+
+  it('never makes the view taller than the cap, however long the page', async () => {
+    commands['Page.getLayoutMetrics'] = {
+      cssContentSize: { width: 1280, height: 500000 },
+    };
+    await createCapture({ chrome }).capture(1);
+    const heights = chrome.debugger.sendCommand.mock.calls
+      .filter(([, method]) => method === 'Emulation.setDeviceMetricsOverride')
+      .map(([, , params]) => (params as { height: number }).height);
+    expect(Math.max(...heights)).toBeLessThanOrEqual(MAX_CAPTURE_HEIGHT);
+    const shot = chrome.debugger.sendCommand.mock.calls.find(
+      ([, method]) => method === 'Page.captureScreenshot',
+    );
+    expect(
+      (shot?.[2] as { clip: { height: number } }).clip.height,
+    ).toBeLessThanOrEqual(MAX_CAPTURE_HEIGHT);
+  });
+
+  it('detaches first when a command hangs, instead of waiting on cleanup', async () => {
+    vi.useFakeTimers();
+    try {
+      chrome.debugger.sendCommand.mockImplementation(
+        async (_target: unknown, method: string) =>
+          method === 'Page.captureScreenshot' ||
+          method === 'Emulation.clearDeviceMetricsOverride'
+            ? new Promise(() => undefined)
+            : commands[method],
+      );
+      const taking = createCapture({ chrome }).capture(1);
+      await vi.advanceTimersByTimeAsync(COMMAND_MS + 5000);
+      await expect(taking).resolves.toMatchObject({ error: 'timeout' });
+      expect(chrome.debugger.detach).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('detaches even when the capture fails', async () => {
@@ -390,6 +429,110 @@ describe('when the debugger cannot attach', () => {
       await vi.runAllTimersAsync();
       await expect(taking).resolves.toMatchObject({ method: 'stitched' });
       expect(chrome.tabs.captureVisibleTab).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Bitmaps that report when they are made and closed.
+  const trackBitmaps = () => {
+    const events: string[] = [];
+    let made = 0;
+    vi.stubGlobal('createImageBitmap', async () => {
+      const id = made++;
+      events.push(`make ${id}`);
+      return {
+        width: 1000,
+        height: 800,
+        close: () => events.push(`close ${id}`),
+      };
+    });
+    return events;
+  };
+
+  it('frees every screen it took when stitching fails partway', async () => {
+    vi.useFakeTimers();
+    try {
+      stubCanvas();
+      const events = trackBitmaps();
+      tallPage();
+      const taking = createCapture({ chrome }).capture(1);
+      await vi.runAllTimersAsync();
+      await expect(taking).resolves.toMatchObject({ error: 'not-drawn' });
+      const made = events.filter((event) => event.startsWith('make')).length;
+      const closed = events.filter((event) => event.startsWith('close')).length;
+      expect(closed).toBe(made);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('draws and frees each screen before taking the next', async () => {
+    vi.useFakeTimers();
+    try {
+      stubCanvas();
+      const events = trackBitmaps();
+      tallPage();
+      let n = 0;
+      chrome.tabs.captureVisibleTab.mockImplementation(
+        async () => `data:image/png;base64,${n++}`,
+      );
+      const taking = createCapture({ chrome }).capture(1);
+      await vi.runAllTimersAsync();
+      await taking;
+      expect(events).toEqual([
+        'make 0',
+        'close 0',
+        'make 1',
+        'close 1',
+        'make 2',
+        'close 2',
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('makes the picture only as tall as what it could capture', async () => {
+    vi.useFakeTimers();
+    try {
+      const sizes: number[][] = [];
+      stubCanvas();
+      const Canvas = globalThis.OffscreenCanvas as unknown as new (
+        width: number,
+        height: number,
+      ) => object;
+      vi.stubGlobal(
+        'OffscreenCanvas',
+        class extends (Canvas as new (w: number, h: number) => object) {
+          constructor(width: number, height: number) {
+            super(width, height);
+            sizes.push([width, height]);
+          }
+        },
+      );
+      // Says it is three screens tall, but stops scrolling after one.
+      chrome.scripting.executeScript.mockImplementation(
+        async ({ args }: { args?: unknown[] }) => [
+          {
+            result: {
+              y: typeof args?.[0] === 'number' ? Math.min(args[0], 800) : 0,
+              viewportWidth: 1000,
+              viewportHeight: 800,
+              contentWidth: 1000,
+              pageHeight: 2400,
+            },
+          },
+        ],
+      );
+      let n = 0;
+      chrome.tabs.captureVisibleTab.mockImplementation(
+        async () => `data:image/png;base64,${n++}`,
+      );
+      const taking = createCapture({ chrome }).capture(1);
+      await vi.runAllTimersAsync();
+      await expect(taking).resolves.toMatchObject({ method: 'stitched' });
+      expect(sizes.at(-1)).toEqual([1000, 1600]);
     } finally {
       vi.useRealTimers();
     }
