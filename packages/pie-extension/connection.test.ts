@@ -4,7 +4,8 @@ import {
   createRequestHandler,
   replyText,
 } from './connection.js';
-import { MAX_MESSAGE_BYTES } from './protocol.js';
+import { randomNonce, sign } from './crypto.js';
+import { MAX_MESSAGE_BYTES, MSG, appProofText } from './protocol.js';
 
 interface FakeSocket {
   readyState: number;
@@ -164,5 +165,100 @@ describe('requests', () => {
       ok: true,
       result: 'page',
     });
+  });
+});
+
+describe('requests once connected', () => {
+  type Reply = { id: string; ok: boolean; result?: unknown };
+  let onRequest: ReturnType<typeof vi.fn>;
+
+  // Plays the app's side of the handshake, so requests are taken.
+  async function connected() {
+    onRequest = vi.fn();
+    const link = createConnection({
+      openSocket: () => {
+        const socket: FakeSocket = {
+          readyState: 1,
+          send: vi.fn(),
+          close: vi.fn(),
+        };
+        sockets.push(socket);
+        return socket;
+      },
+      storage,
+      onRequest,
+    });
+    await link.connect();
+    const socket = sockets[0];
+    socket.onopen?.();
+    const hello = JSON.parse(socket.send.mock.calls[0][0]);
+    const appNonce = randomNonce();
+    const proof = await sign('code', appProofText(hello.nonce, appNonce));
+    deliver(socket, { type: MSG.CHALLENGE, nonce: appNonce, proof });
+    await vi.waitFor(() => expect(socket.send).toHaveBeenCalledTimes(2));
+    deliver(socket, { type: MSG.READY });
+    await vi.waitFor(() => expect(data.pieStatus).toBe('connected'));
+    return socket;
+  }
+
+  function deliver(socket: FakeSocket, message: object) {
+    socket.onmessage?.({ data: JSON.stringify(message) });
+  }
+
+  const request = (id: string, action: string, timeoutMs?: number) => ({
+    type: MSG.REQUEST,
+    id,
+    action,
+    timeoutMs,
+  });
+
+  const replies = (socket: FakeSocket): Reply[] =>
+    socket.send.mock.calls
+      .map(([text]) => JSON.parse(text))
+      .filter((message) => message.type === MSG.REPLY);
+
+  it('answers a quick request while a slow capture is still running', async () => {
+    const socket = await connected();
+    onRequest.mockImplementation((action: string) =>
+      action === 'capture'
+        ? new Promise(() => undefined)
+        : Promise.resolve({ ok: true, result: 'tab' }),
+    );
+    deliver(socket, request('slow', 'capture', 90000));
+    deliver(socket, request('quick', 'activeTab'));
+    await vi.waitFor(() =>
+      expect(replies(socket).map(({ id }) => id)).toEqual(['quick']),
+    );
+  });
+
+  it('runs one capture at a time', async () => {
+    const socket = await connected();
+    let finishFirst: (value: unknown) => void = () => undefined;
+    onRequest.mockImplementationOnce(
+      () => new Promise((resolve) => (finishFirst = resolve)),
+    );
+    onRequest.mockResolvedValue({ ok: true, result: 'second' });
+    deliver(socket, request('one', 'capture', 90000));
+    deliver(socket, request('two', 'capture', 90000));
+    await flush();
+    expect(onRequest).toHaveBeenCalledTimes(1);
+    finishFirst({ ok: true, result: 'first' });
+    await vi.waitFor(() => expect(onRequest).toHaveBeenCalledTimes(2));
+  });
+
+  it('drops a capture whose time ran out while it waited its turn', async () => {
+    const socket = await connected();
+    let finishFirst: (value: unknown) => void = () => undefined;
+    onRequest.mockImplementationOnce(
+      () => new Promise((resolve) => (finishFirst = resolve)),
+    );
+    deliver(socket, request('one', 'capture', 90000));
+    deliver(socket, request('late', 'capture', 1000));
+    await vi.advanceTimersByTimeAsync(5000);
+    finishFirst({ ok: true, result: 'first' });
+    await flush();
+    await flush();
+    expect(onRequest).toHaveBeenCalledTimes(1);
+    expect(replies(socket).map(({ id }) => id)).toEqual(['one']);
   });
 });

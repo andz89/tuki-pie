@@ -21,6 +21,22 @@ const RETRY_DELAYS_MS = [1000, 3000, 10000];
 const WAITING = new Set(['bad-code', 'replaced']);
 const OPEN = 1;
 const encoder = new TextEncoder();
+// Actions that take over the tab (the debugger, scrolling, focus), so two
+// can't run at once. Everything else runs as soon as it arrives.
+const ONE_AT_A_TIME = new Set(['capture']);
+// How long the app waits when a request doesn't say, as in chrome-bridge.ts.
+const DEFAULT_REQUEST_MS = 10000;
+const MAX_REQUEST_MS = 5 * 60 * 1000;
+
+// When the app stops waiting for this request.
+function deadlineOf(message) {
+  const ms = message.timeoutMs;
+  const wait =
+    Number.isFinite(ms) && ms > 0
+      ? Math.min(ms, MAX_REQUEST_MS)
+      : DEFAULT_REQUEST_MS;
+  return Date.now() + wait;
+}
 
 const asText = (data) => (typeof data === 'string' ? data : String(data));
 
@@ -67,6 +83,8 @@ export function createConnection({ openSocket, storage, onRequest }) {
   let retryAttempt = 0;
   let retryTimer;
   let pingTimer;
+  // The capture running now, which the next one waits for.
+  let turn = Promise.resolve();
 
   const setStatus = (status) => storage.set({ pieStatus: status });
 
@@ -132,10 +150,30 @@ export function createConnection({ openSocket, storage, onRequest }) {
         return;
       }
       if (message.type === MSG.REQUEST && typeof message.id === 'string') {
-        const reply = await onRequest(message.action, message.args);
-        send(ws, replyText(message.id, reply));
+        // Not awaited: a slow capture must not hold up a quick read.
+        void runRequest(ws, message);
       }
     };
+
+    async function runRequest(ws, message) {
+      const deadline = deadlineOf(message);
+      const answer = async () => {
+        // The app gave up while this waited its turn: running it now would
+        // only take the tab over for nothing.
+        if (Date.now() > deadline) {
+          return;
+        }
+        const reply = await onRequest(message.action, message.args);
+        send(ws, replyText(message.id, reply));
+      };
+      if (!ONE_AT_A_TIME.has(message.action)) {
+        await answer().catch(() => undefined);
+        return;
+      }
+      const run = turn.then(answer);
+      turn = run.catch(() => undefined);
+      await turn;
+    }
 
     ws.onopen = () => send(ws, { type: MSG.HELLO, nonce: extNonce });
     ws.onmessage = (event) => {

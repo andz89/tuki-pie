@@ -226,7 +226,10 @@ export class ChromeBridge {
         reject(new Error('no-answer'));
       }, timeoutMs);
       this.waiting.set(id, { resolve, reject, timer });
-      ws.send(JSON.stringify({ type: MSG.REQUEST, id, action, args }));
+      // The extension drops a request still waiting its turn after this.
+      ws.send(
+        JSON.stringify({ type: MSG.REQUEST, id, action, args, timeoutMs }),
+      );
     });
   }
 
