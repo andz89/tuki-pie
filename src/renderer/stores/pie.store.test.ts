@@ -338,8 +338,26 @@ describe('the Settings circles', () => {
   });
 
   it('changes the volume through the main process', () => {
+    vi.useFakeTimers();
     store().changeVolume('up');
     expect(bridge.window.volume).toHaveBeenCalledExactlyOnceWith('up');
+    vi.advanceTimersByTime(100);
+    vi.useRealTimers();
+  });
+
+  it('turns the volume one step per frame, however fast the wheel spins', () => {
+    vi.useFakeTimers();
+    for (let step = 0; step < 10; step++) {
+      store().changeVolume('up');
+    }
+    expect(bridge.window.volume).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(20);
+    store().changeVolume('up');
+    expect(bridge.window.volume).toHaveBeenCalledTimes(2);
+    store().changeVolume('mute');
+    expect(bridge.window.volume).toHaveBeenLastCalledWith('mute');
+    vi.advanceTimersByTime(100);
+    vi.useRealTimers();
   });
 });
 
@@ -369,8 +387,24 @@ describe('window actions', () => {
   });
 
   it('moveWindowBy() passes the distance to the main process', () => {
+    vi.useFakeTimers();
     store().moveWindowBy(12, -7);
     expect(bridge.window.moveBy).toHaveBeenCalledExactlyOnceWith(12, -7);
+    vi.advanceTimersByTime(100);
+    vi.useRealTimers();
+  });
+
+  it('sends the drag steps of one frame as one move', () => {
+    vi.useFakeTimers();
+    for (let step = 0; step < 5; step++) {
+      store().moveWindowBy(1, 2);
+    }
+    expect(bridge.window.moveBy).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(20);
+    expect(bridge.window.moveBy).toHaveBeenCalledTimes(2);
+    expect(bridge.window.moveBy).toHaveBeenLastCalledWith(4, 8);
+    vi.advanceTimersByTime(100);
+    vi.useRealTimers();
   });
 });
 

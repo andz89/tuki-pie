@@ -81,8 +81,16 @@ export function openSectionPicker(
   picking = { window, image, done };
 }
 
+// Only the picker's background: a JPEG encodes many times faster than a
+// full-screen PNG. The saved part is cut from the original picture.
+const PICKER_JPEG_QUALITY = 90;
+
 export function sectionPickerImage(): string | null {
-  return picking ? picking.image.toDataURL() : null;
+  if (!picking) {
+    return null;
+  }
+  const jpeg = picking.image.toJPEG(PICKER_JPEG_QUALITY);
+  return `data:image/jpeg;base64,${jpeg.toString('base64')}`;
 }
 
 export function finishPicking(selection: Area | null): void {

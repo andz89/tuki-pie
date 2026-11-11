@@ -376,6 +376,24 @@ describe('panel store', () => {
     expect(store().error).toBe('Nothing found at that path.');
   });
 
+  it('shows a dragged accent at once and saves it once dragging pauses', async () => {
+    vi.useFakeTimers();
+    vi.mocked(panelBridge.settings.update).mockResolvedValue({
+      ok: true,
+      value: { ...DEFAULT_SETTINGS, accent: '#000005' },
+    });
+    for (let step = 1; step <= 5; step++) {
+      store().dragAccent(`#00000${step}`);
+    }
+    expect(store().settings.accent).toBe('#000005');
+    expect(panelBridge.settings.update).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(panelBridge.settings.update).toHaveBeenCalledExactlyOnceWith({
+      accent: '#000005',
+    });
+    vi.useRealTimers();
+  });
+
   it('clears an old error after something works', async () => {
     usePanelStore.setState({ error: 'old' });
     vi.mocked(panelBridge.shortcuts.remove).mockResolvedValue({

@@ -24,6 +24,7 @@ const PINS: Array<{ value: Pin; label: string }> = [
 export function AppearanceSection() {
   const settings = usePanelStore((state) => state.settings);
   const updateSettings = usePanelStore((state) => state.updateSettings);
+  const dragAccent = usePanelStore((state) => state.dragAccent);
 
   return (
     <section className="panel-section" aria-labelledby="appearance-heading">
@@ -109,9 +110,7 @@ export function AppearanceSection() {
               <input
                 type="color"
                 value={settings.accent.toLowerCase()}
-                onChange={(event) =>
-                  void updateSettings({ accent: event.target.value })
-                }
+                onChange={(event) => dragAccent(event.target.value)}
               />
             </label>
           </div>

@@ -52,10 +52,15 @@ interface PanelState {
   pickUpFormRequest: () => Promise<void>;
   clearFormRequest: () => void;
   updateSettings: (changes: SettingsUpdate) => Promise<void>;
+  // The colour picker sends a value on every step of a drag.
+  dragAccent: (accent: string) => void;
   removeAllowedApp: (path: string) => Promise<void>;
   pickPath: (type: SliceType) => Promise<string | null>;
   clearError: () => void;
 }
+
+const ACCENT_SAVE_MS = 250;
+let accentTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const usePanelStore = create<PanelState>()((set, get) => {
   // Applies a successful answer, or shows the reason it failed.
@@ -213,6 +218,17 @@ export const usePanelStore = create<PanelState>()((set, get) => {
     updateSettings: async (changes) => {
       accept(await panelBridge.settings.update(changes), (settings) =>
         set({ settings }),
+      );
+    },
+
+    // Shown in this window at once; saved (a message, a database write and
+    // every window restyling) only once the drag pauses.
+    dragAccent: (accent) => {
+      set({ settings: { ...get().settings, accent } });
+      clearTimeout(accentTimer);
+      accentTimer = setTimeout(
+        () => void get().updateSettings({ accent }),
+        ACCENT_SAVE_MS,
       );
     },
 

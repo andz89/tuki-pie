@@ -39,6 +39,15 @@ const COPIED_NOTICE_MS = 1200;
 const NO_IMAGES_MESSAGE =
   'Select images in File Explorer, then open the donut there.';
 
+// Drag and wheel events come far faster than the screen redraws, and each
+// one used to be its own message to the main process. The first of a frame
+// goes at once; the rest of that frame is added up (moves) or dropped
+// (volume steps, so a touchpad can't fire dozens of key presses).
+const FRAME_MS = 16;
+let moveTimer: ReturnType<typeof setTimeout> | undefined;
+let movedLater = { x: 0, y: 0 };
+let volumeTimer: ReturnType<typeof setTimeout> | undefined;
+
 // One timer, so a second copy can't be cut short by the first one's.
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -387,10 +396,34 @@ export const usePieStore = create<PieState>()((set, get) => ({
   setCircleHint: (hint) => set({ circleHint: hint }),
 
   moveWindowBy: (deltaX, deltaY) => {
+    if (moveTimer !== undefined) {
+      movedLater = { x: movedLater.x + deltaX, y: movedLater.y + deltaY };
+      return;
+    }
     void bridge.window.moveBy(deltaX, deltaY);
+    const endFrame = () => {
+      const { x, y } = movedLater;
+      movedLater = { x: 0, y: 0 };
+      if (x === 0 && y === 0) {
+        moveTimer = undefined;
+        return;
+      }
+      void bridge.window.moveBy(x, y);
+      moveTimer = setTimeout(endFrame, FRAME_MS);
+    };
+    moveTimer = setTimeout(endFrame, FRAME_MS);
   },
 
   changeVolume: (change) => {
+    // A click on mute always counts.
+    if (change !== 'mute') {
+      if (volumeTimer !== undefined) {
+        return;
+      }
+      volumeTimer = setTimeout(() => {
+        volumeTimer = undefined;
+      }, FRAME_MS);
+    }
     void bridge.window.volume(change);
   },
 
