@@ -8,6 +8,7 @@ import {
 } from '../windows/pie-window';
 import { openPageInfo } from '../windows/page-info-window';
 import { registerWindowIpc } from './window.ipc';
+import { eventFor } from './fake-sender';
 
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }));
 vi.mock('../windows/pie-window', () => ({
@@ -35,26 +36,34 @@ beforeEach(() => {
 
 describe('window dismiss IPC', () => {
   it('applies the pin rule instead of hiding outright', () => {
-    handlerFor(IpcChannels.windowDismiss)({});
+    handlerFor(IpcChannels.windowDismiss)(eventFor(IpcChannels.windowDismiss));
     expect(dismissPieWindow).toHaveBeenCalledOnce();
     expect(hidePieWindow).not.toHaveBeenCalled();
   });
 
   it('rejects unexpected input without dismissing the donut', () => {
-    expect(() => handlerFor(IpcChannels.windowDismiss)({}, 'now')).toThrow();
+    expect(() =>
+      handlerFor(IpcChannels.windowDismiss)(
+        eventFor(IpcChannels.windowDismiss),
+        'now',
+      ),
+    ).toThrow();
     expect(dismissPieWindow).not.toHaveBeenCalled();
   });
 });
 
 describe('window hide IPC', () => {
   it('hides the donut when called with no input', () => {
-    handlerFor(IpcChannels.windowHide)({});
+    handlerFor(IpcChannels.windowHide)(eventFor(IpcChannels.windowHide));
     expect(hidePieWindow).toHaveBeenCalledOnce();
   });
 
   it('rejects unexpected input without hiding the donut', () => {
     expect(() =>
-      handlerFor(IpcChannels.windowHide)({}, 'C:\\Windows\\notepad.exe'),
+      handlerFor(IpcChannels.windowHide)(
+        eventFor(IpcChannels.windowHide),
+        'C:\\Windows\\notepad.exe',
+      ),
     ).toThrow();
     expect(hidePieWindow).not.toHaveBeenCalled();
   });
@@ -66,14 +75,19 @@ describe('opening Page Info', () => {
   });
 
   it('dismisses the donut and opens the window', () => {
-    handlerFor(IpcChannels.windowOpenPageInfo)({});
+    handlerFor(IpcChannels.windowOpenPageInfo)(
+      eventFor(IpcChannels.windowOpenPageInfo),
+    );
     expect(dismissPieWindow).toHaveBeenCalledOnce();
     expect(openPageInfo).toHaveBeenCalledOnce();
   });
 
   it('rejects unexpected input', () => {
     expect(() =>
-      handlerFor(IpcChannels.windowOpenPageInfo)({}, 'https://a.com'),
+      handlerFor(IpcChannels.windowOpenPageInfo)(
+        eventFor(IpcChannels.windowOpenPageInfo),
+        'https://a.com',
+      ),
     ).toThrow();
     expect(openPageInfo).not.toHaveBeenCalled();
   });
@@ -81,7 +95,11 @@ describe('opening Page Info', () => {
 
 describe('window move IPC', () => {
   it('moves the donut by whole-pixel distances', () => {
-    handlerFor(IpcChannels.windowMoveBy)({}, 12, -7);
+    handlerFor(IpcChannels.windowMoveBy)(
+      eventFor(IpcChannels.windowMoveBy),
+      12,
+      -7,
+    );
     expect(movePieWindowBy).toHaveBeenCalledExactlyOnceWith(12, -7);
   });
 
@@ -93,7 +111,12 @@ describe('window move IPC', () => {
     ['an impossibly large distance', [50000, 0]],
     ['not-a-number', [Number.NaN, 0]],
   ])('rejects %s without moving the donut', (_name, input) => {
-    expect(() => handlerFor(IpcChannels.windowMoveBy)({}, ...input)).toThrow();
+    expect(() =>
+      handlerFor(IpcChannels.windowMoveBy)(
+        eventFor(IpcChannels.windowMoveBy),
+        ...input,
+      ),
+    ).toThrow();
     expect(movePieWindowBy).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import { IpcChannels } from '../../shared/ipc-channels';
 import type { SliceService } from '../services/slice.service';
 import { getPanelWindow } from '../windows/panel-window';
 import { registerPanelIpc } from './panel.ipc';
+import { eventFor } from './fake-sender';
 
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
@@ -12,11 +13,6 @@ vi.mock('electron', () => ({
 vi.mock('../windows/panel-window', () => ({ getPanelWindow: vi.fn() }));
 
 const slices = {
-  add: vi.fn(() => []),
-  update: vi.fn(() => []),
-  remove: vi.fn(() => []),
-  reorder: vi.fn(() => []),
-  allowApp: vi.fn(),
   listAllowedApps: vi.fn(() => []),
   removeAllowedApp: vi.fn(() => []),
 };
@@ -34,44 +30,6 @@ beforeEach(() => {
   registerPanelIpc(slices as unknown as SliceService);
 });
 
-describe('saving from the settings window', () => {
-  const app = { label: 'Editor', type: 'app', path: 'C:\\e.exe' };
-  const folder = { label: 'Work', type: 'folder', path: 'C:\\Work' };
-
-  it('approves an app the person saved', async () => {
-    await handlerFor(IpcChannels.panelSliceAdd)({}, app);
-    expect(slices.allowApp).toHaveBeenCalledExactlyOnceWith('C:\\e.exe');
-    expect(slices.add).toHaveBeenCalledOnce();
-  });
-
-  it('approves an app the person changed a slice to', async () => {
-    await handlerFor(IpcChannels.panelSliceUpdate)({}, { ...app, id: 'a' });
-    expect(slices.allowApp).toHaveBeenCalledExactlyOnceWith('C:\\e.exe');
-  });
-
-  it('does not add folders to the allowed apps', async () => {
-    await handlerFor(IpcChannels.panelSliceAdd)({}, folder);
-    expect(slices.allowApp).not.toHaveBeenCalled();
-  });
-
-  it('rejects a slice with an unknown type', async () => {
-    await expect(
-      handlerFor(IpcChannels.panelSliceAdd)({}, { ...folder, type: 'script' }),
-    ).rejects.toThrow();
-    expect(slices.add).not.toHaveBeenCalled();
-    expect(slices.allowApp).not.toHaveBeenCalled();
-  });
-
-  it('rejects a name longer than the limit', async () => {
-    await expect(
-      handlerFor(IpcChannels.panelSliceAdd)(
-        {},
-        { ...folder, label: 'x'.repeat(25) },
-      ),
-    ).rejects.toThrow();
-  });
-});
-
 describe('choosing a location', () => {
   const panel = { id: 'panel' };
 
@@ -82,7 +40,10 @@ describe('choosing a location', () => {
       filePaths: ['C:\\Picked'],
     });
     await expect(
-      handlerFor(IpcChannels.panelPickPath)({}, 'folder'),
+      handlerFor(IpcChannels.panelPickPath)(
+        eventFor(IpcChannels.panelPickPath),
+        'folder',
+      ),
     ).resolves.toEqual({ ok: true, value: 'C:\\Picked' });
   });
 
@@ -92,7 +53,10 @@ describe('choosing a location', () => {
       canceled: true,
       filePaths: [],
     });
-    await handlerFor(IpcChannels.panelPickPath)({}, 'folder');
+    await handlerFor(IpcChannels.panelPickPath)(
+      eventFor(IpcChannels.panelPickPath),
+      'folder',
+    );
     expect(dialog.showOpenDialog).toHaveBeenCalledExactlyOnceWith(
       panel,
       expect.objectContaining({ properties: ['openDirectory'] }),
@@ -106,7 +70,10 @@ describe('choosing a location', () => {
       filePaths: [],
     });
     await expect(
-      handlerFor(IpcChannels.panelPickPath)({}, 'note'),
+      handlerFor(IpcChannels.panelPickPath)(
+        eventFor(IpcChannels.panelPickPath),
+        'note',
+      ),
     ).resolves.toEqual({ ok: true, value: null });
   });
 });

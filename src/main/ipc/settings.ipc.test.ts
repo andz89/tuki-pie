@@ -6,6 +6,7 @@ import { UserError } from '../services/user-error';
 import { setOpenKeys } from '../shortcuts/open-keys';
 import { setPiePin, setPieSize } from '../windows/pie-window';
 import { registerSettingsIpc } from './settings.ipc';
+import { eventFor } from './fake-sender';
 
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }));
 vi.mock('../windows/pie-window', () => ({
@@ -39,32 +40,65 @@ beforeEach(() => {
 describe('settings IPC', () => {
   it('reports a saved change, so Chrome gets the suggestions switch', async () => {
     await handlerFor(IpcChannels.settingsUpdate)(
-      {},
+      eventFor(IpcChannels.settingsUpdate),
       { suggestionsInChrome: 'off' },
     );
     expect(onChanged).toHaveBeenCalledOnce();
   });
 
+  it('lets the donut change its look', async () => {
+    await handlerFor(IpcChannels.pieSettingsUpdate)(
+      eventFor(IpcChannels.pieSettingsUpdate),
+      { pin: 'pinned', theme: 'light' },
+    );
+    expect(settings.update).toHaveBeenCalledWith({
+      pin: 'pinned',
+      theme: 'light',
+    });
+  });
+
+  it.each([{ openKeys: 'Ctrl+A' }, { suggestionsInChrome: 'off' }])(
+    'refuses any other change from the donut: %j',
+    async (changes) => {
+      await expect(
+        handlerFor(IpcChannels.pieSettingsUpdate)(
+          eventFor(IpcChannels.pieSettingsUpdate),
+          changes,
+        ),
+      ).rejects.toThrow();
+      expect(settings.update).not.toHaveBeenCalled();
+    },
+  );
+
   it('saves a change and returns the new settings', async () => {
     await expect(
-      handlerFor(IpcChannels.settingsUpdate)({}, { theme: 'dark' }),
+      handlerFor(IpcChannels.settingsUpdate)(
+        eventFor(IpcChannels.settingsUpdate),
+        { theme: 'dark' },
+      ),
     ).resolves.toEqual({ ok: true, value: saved });
     expect(settings.update).toHaveBeenCalledExactlyOnceWith({ theme: 'dark' });
   });
 
   it('resizes the donut window to the saved size', async () => {
-    await handlerFor(IpcChannels.settingsUpdate)({}, { size: 'large' });
+    await handlerFor(IpcChannels.settingsUpdate)(
+      eventFor(IpcChannels.settingsUpdate),
+      { size: 'large' },
+    );
     expect(setPieSize).toHaveBeenCalledExactlyOnceWith('large');
   });
 
   it('applies the saved pin to the donut window', async () => {
-    await handlerFor(IpcChannels.settingsUpdate)({}, { pin: 'pinned' });
+    await handlerFor(IpcChannels.settingsUpdate)(
+      eventFor(IpcChannels.settingsUpdate),
+      { pin: 'pinned' },
+    );
     expect(setPiePin).toHaveBeenCalledExactlyOnceWith('pinned');
   });
 
   it('registers new open keys before saving them', async () => {
     await handlerFor(IpcChannels.settingsUpdate)(
-      {},
+      eventFor(IpcChannels.settingsUpdate),
       { openKeys: 'Ctrl+Alt+P' },
     );
     expect(setOpenKeys).toHaveBeenCalledExactlyOnceWith('Ctrl+Alt+P');
@@ -76,7 +110,10 @@ describe('settings IPC', () => {
       throw new UserError('Those keys are already used by another app.');
     });
     await expect(
-      handlerFor(IpcChannels.settingsUpdate)({}, { openKeys: 'Ctrl+Alt+P' }),
+      handlerFor(IpcChannels.settingsUpdate)(
+        eventFor(IpcChannels.settingsUpdate),
+        { openKeys: 'Ctrl+Alt+P' },
+      ),
     ).resolves.toEqual({
       ok: false,
       error: 'Those keys are already used by another app.',
@@ -85,7 +122,10 @@ describe('settings IPC', () => {
   });
 
   it('leaves the open keys alone when they are not changed', async () => {
-    await handlerFor(IpcChannels.settingsUpdate)({}, { theme: 'light' });
+    await handlerFor(IpcChannels.settingsUpdate)(
+      eventFor(IpcChannels.settingsUpdate),
+      { theme: 'light' },
+    );
     expect(setOpenKeys).not.toHaveBeenCalled();
   });
 
@@ -96,7 +136,10 @@ describe('settings IPC', () => {
     [{ pin: 'yes' }],
   ])('rejects %o without saving', async (changes) => {
     await expect(
-      handlerFor(IpcChannels.settingsUpdate)({}, changes),
+      handlerFor(IpcChannels.settingsUpdate)(
+        eventFor(IpcChannels.settingsUpdate),
+        changes,
+      ),
     ).rejects.toThrow();
     expect(settings.update).not.toHaveBeenCalled();
   });

@@ -4,6 +4,7 @@ import { IpcChannels } from '../../shared/ipc-channels';
 import type { PairingCode } from '../chrome-bridge/pairing-code';
 import { getPanelWindow } from '../windows/panel-window';
 import { registerChromeIpc } from './chrome.ipc';
+import { eventFor } from './fake-sender';
 
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
@@ -45,7 +46,11 @@ beforeEach(() => {
 
 describe('Chrome settings messages', () => {
   it('gives the status and the code', async () => {
-    await expect(handlerFor(IpcChannels.panelChromeGet)({})).resolves.toEqual({
+    await expect(
+      handlerFor(IpcChannels.panelChromeGet)(
+        eventFor(IpcChannels.panelChromeGet),
+      ),
+    ).resolves.toEqual({
       ok: true,
       value: { status: 'connected', code: 'old-code' },
     });
@@ -53,13 +58,17 @@ describe('Chrome settings messages', () => {
 
   it('makes a new code and disconnects Chrome', async () => {
     await expect(
-      handlerFor(IpcChannels.panelChromeNewCode)({}),
+      handlerFor(IpcChannels.panelChromeNewCode)(
+        eventFor(IpcChannels.panelChromeNewCode),
+      ),
     ).resolves.toMatchObject({ value: { code: 'new-code' } });
     expect(bridge.dropConnection).toHaveBeenCalledOnce();
   });
 
   it('copies the code', async () => {
-    await handlerFor(IpcChannels.panelChromeCopyCode)({});
+    await handlerFor(IpcChannels.panelChromeCopyCode)(
+      eventFor(IpcChannels.panelChromeCopyCode),
+    );
     expect(clipboard.writeText).toHaveBeenCalledExactlyOnceWith('old-code');
   });
 
@@ -77,7 +86,10 @@ describe('Chrome settings messages', () => {
 
   it('refuses extra arguments', async () => {
     await expect(
-      handlerFor(IpcChannels.panelChromeGet)({}, 'x'),
+      handlerFor(IpcChannels.panelChromeGet)(
+        eventFor(IpcChannels.panelChromeGet),
+        'x',
+      ),
     ).rejects.toThrow();
   });
 });

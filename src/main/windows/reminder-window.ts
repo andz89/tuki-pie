@@ -2,6 +2,7 @@ import { BrowserWindow, screen } from 'electron';
 import path from 'node:path';
 import { IpcChannels } from '../../shared/ipc-channels';
 import type { DueReminder } from '../../shared/schemas/note.schema';
+import { setWindowRole } from '../ipc/ipc-access';
 
 export const CARD_WIDTH = 360;
 const EDGE_GAP = 16;
@@ -75,6 +76,8 @@ export function showReminders(due: DueReminder[]): void {
       sandbox: true,
     },
   });
+  // Decides which messages this window may send, see ipc-access.ts.
+  setWindowRole(window.webContents, 'reminder');
   // Above ordinary always-on-top windows, like Page Info kept on top.
   window.setAlwaysOnTop(true, 'pop-up-menu');
 

@@ -9,6 +9,7 @@ import {
   getPageInfoController,
 } from '../windows/page-info-window';
 import { registerPageInfoIpc } from './page-info.ipc';
+import { eventFor } from './fake-sender';
 
 const image = {
   isEmpty: () => false,
@@ -73,7 +74,11 @@ beforeEach(() => {
 
 describe('opening links', () => {
   it('never opens what the saved Link filters hide or mark', async () => {
-    await handlerFor(IpcChannels.pageInfoOpenLinks)({}, LINKS, []);
+    await handlerFor(IpcChannels.pageInfoOpenLinks)(
+      eventFor(IpcChannels.pageInfoOpenLinks),
+      LINKS,
+      [],
+    );
     expect(controller.openLinks).toHaveBeenCalledWith(['https://a.com/about']);
     expect(getPageInfoController).toHaveBeenCalled();
   });
@@ -84,15 +89,20 @@ describe('opening links', () => {
       words: [],
       tokens: false,
     });
-    await handlerFor(IpcChannels.pageInfoOpenLinks)({}, LINKS, []);
+    await handlerFor(IpcChannels.pageInfoOpenLinks)(
+      eventFor(IpcChannels.pageInfoOpenLinks),
+      LINKS,
+      [],
+    );
     expect(controller.openLinks).toHaveBeenCalledWith(LINKS);
   });
 
   it('opens a marked link only when the user ticked it', async () => {
-    await handlerFor(IpcChannels.pageInfoOpenLinks)({}, LINKS, [
-      'https://a.com/order?id=5',
-      'https://a.com/posts/5/delete',
-    ]);
+    await handlerFor(IpcChannels.pageInfoOpenLinks)(
+      eventFor(IpcChannels.pageInfoOpenLinks),
+      LINKS,
+      ['https://a.com/order?id=5', 'https://a.com/posts/5/delete'],
+    );
     expect(controller.openLinks).toHaveBeenCalledWith([
       'https://a.com/about',
       'https://a.com/order?id=5',
@@ -104,7 +114,11 @@ describe('opening links', () => {
       ...DEFAULT_LINK_FILTER,
       words: [{ word: 'about', on: true }],
     });
-    await handlerFor(IpcChannels.pageInfoOpenLinks)({}, LINKS, []);
+    await handlerFor(IpcChannels.pageInfoOpenLinks)(
+      eventFor(IpcChannels.pageInfoOpenLinks),
+      LINKS,
+      [],
+    );
     expect(controller.openLinks).toHaveBeenCalledWith([]);
   });
 });
@@ -112,7 +126,10 @@ describe('opening links', () => {
 describe('saving Link filters', () => {
   it('saves the filter as text', async () => {
     const filter = { off: ['nonce'], words: [], tokens: true };
-    await handlerFor(IpcChannels.pageInfoSetLinkFilter)({}, filter);
+    await handlerFor(IpcChannels.pageInfoSetLinkFilter)(
+      eventFor(IpcChannels.pageInfoSetLinkFilter),
+      filter,
+    );
     expect(settings.update).toHaveBeenCalledExactlyOnceWith({
       linkFilter: JSON.stringify(filter),
     });
@@ -120,7 +137,10 @@ describe('saving Link filters', () => {
 
   it('refuses a filter that is not one', async () => {
     await expect(
-      handlerFor(IpcChannels.pageInfoSetLinkFilter)({}, { off: 'x' }),
+      handlerFor(IpcChannels.pageInfoSetLinkFilter)(
+        eventFor(IpcChannels.pageInfoSetLinkFilter),
+        { off: 'x' },
+      ),
     ).rejects.toThrow();
     expect(settings.update).not.toHaveBeenCalled();
   });
@@ -129,7 +149,10 @@ describe('saving Link filters', () => {
 describe('the page screenshot', () => {
   it('sends the picture with its size', async () => {
     await expect(
-      handlerFor(IpcChannels.pageInfoCapture)({}, SIZE),
+      handlerFor(IpcChannels.pageInfoCapture)(
+        eventFor(IpcChannels.pageInfoCapture),
+        SIZE,
+      ),
     ).resolves.toEqual({
       ok: true,
       value: {
@@ -149,7 +172,7 @@ describe('the page screenshot', () => {
   it('refuses a size that is not on the list', async () => {
     await expect(
       handlerFor(IpcChannels.pageInfoCapture)(
-        {},
+        eventFor(IpcChannels.pageInfoCapture),
         { device: 'Huge', reload: false },
       ),
     ).rejects.toThrow();
@@ -159,13 +182,18 @@ describe('the page screenshot', () => {
   it('comes back to the window even when it fails', async () => {
     controller.capture.mockRejectedValueOnce(new Error('boom'));
     await expect(
-      handlerFor(IpcChannels.pageInfoCapture)({}, SIZE),
+      handlerFor(IpcChannels.pageInfoCapture)(
+        eventFor(IpcChannels.pageInfoCapture),
+        SIZE,
+      ),
     ).rejects.toThrow();
     expect(focusPageInfoWindow).toHaveBeenCalled();
   });
 
   it('saves the kept JPEG under the page title', async () => {
-    await handlerFor(IpcChannels.pageInfoSaveCapture)({});
+    await handlerFor(IpcChannels.pageInfoSaveCapture)(
+      eventFor(IpcChannels.pageInfoSaveCapture),
+    );
     const [bytes, name] = vi.mocked(saveToPictures).mock.calls[0];
     expect(Buffer.from(bytes).toString('base64')).toBe('AAAA');
     expect(name).toMatch(/^Shop iPhone 16 \d{4}-\d{2}-\d{2} \d{6}\.jpg$/);
@@ -177,7 +205,7 @@ describe('the page screenshot', () => {
       IpcChannels.pageInfoSaveCapture,
       IpcChannels.pageInfoCopyCapture,
     ]) {
-      await expect(handlerFor(channel)({})).resolves.toEqual({
+      await expect(handlerFor(channel)(eventFor(channel))).resolves.toEqual({
         ok: false,
         error: 'Take a screenshot first.',
       });

@@ -2,12 +2,7 @@ import { dialog } from 'electron';
 import type { OpenDialogOptions } from 'electron';
 import { z } from 'zod';
 import { IpcChannels } from '../../shared/ipc-channels';
-import {
-  NewSlice,
-  Slice,
-  SliceEdit,
-  SliceType,
-} from '../../shared/schemas/slice.schema';
+import { Slice, SliceType } from '../../shared/schemas/slice.schema';
 import type { SliceType as SliceTypeValue } from '../../shared/types';
 import type { SliceService } from '../services/slice.service';
 import { getPanelWindow } from '../windows/panel-window';
@@ -49,34 +44,6 @@ async function pickPath(type: SliceTypeValue): Promise<string | null> {
 }
 
 export function registerPanelIpc(slices: SliceService): void {
-  // These messages can only come from the settings window, so saving an app
-  // there counts as the person approving it.
-  const approveApp = ({ type, path }: NewSlice) => {
-    if (type === 'app') {
-      slices.allowApp(path);
-    }
-  };
-
-  handle(IpcChannels.panelSliceAdd, z.tuple([NewSlice]), (item) => {
-    approveApp(item);
-    return slices.add(item);
-  });
-
-  handle(IpcChannels.panelSliceUpdate, z.tuple([SliceEdit]), (edit) => {
-    approveApp(edit);
-    return slices.update(edit);
-  });
-
-  handle(IpcChannels.panelSliceRemove, z.tuple([Slice.shape.id]), (id) =>
-    slices.remove(id),
-  );
-
-  handle(
-    IpcChannels.panelSlicesReorder,
-    z.tuple([Slice.shape.id.array().max(8)]),
-    (ids) => slices.reorder(ids),
-  );
-
   handle(IpcChannels.panelAllowedAppsList, z.tuple([]), () =>
     slices.listAllowedApps(),
   );

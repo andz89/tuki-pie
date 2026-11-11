@@ -3,6 +3,7 @@ import { uIOhook } from 'uiohook-napi';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IpcChannels } from '../../shared/ipc-channels';
 import { registerVolumeIpc } from './volume.ipc';
+import { eventFrom } from './fake-sender';
 
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }));
 vi.mock('uiohook-napi', () => ({ uIOhook: { keyTap: vi.fn() } }));
@@ -26,12 +27,12 @@ describe('volume IPC', () => {
     ['down', 0xe02e],
     ['mute', 0xe020],
   ])('presses the %s volume key', async (change, key) => {
-    await volumeHandler()({}, change);
+    await volumeHandler()(eventFrom('pie'), change);
     expect(uIOhook.keyTap).toHaveBeenCalledExactlyOnceWith(key);
   });
 
   it('rejects anything else without pressing a key', async () => {
-    await expect(volumeHandler()({}, 'loud')).rejects.toThrow();
+    await expect(volumeHandler()(eventFrom('pie'), 'loud')).rejects.toThrow();
     expect(uIOhook.keyTap).not.toHaveBeenCalled();
   });
 });

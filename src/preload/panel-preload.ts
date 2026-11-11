@@ -4,13 +4,6 @@ import type { ChromeStatus, PanelBridge } from '../shared/types';
 
 // Only the settings window gets this bridge. The donut's bridge can't change anything.
 const bridge: PanelBridge = {
-  slices: {
-    list: () => ipcRenderer.invoke(IpcChannels.slicesList),
-    add: (item) => ipcRenderer.invoke(IpcChannels.panelSliceAdd, item),
-    update: (edit) => ipcRenderer.invoke(IpcChannels.panelSliceUpdate, edit),
-    remove: (id) => ipcRenderer.invoke(IpcChannels.panelSliceRemove, id),
-    reorder: (ids) => ipcRenderer.invoke(IpcChannels.panelSlicesReorder, ids),
-  },
   shortcuts: {
     list: () => ipcRenderer.invoke(IpcChannels.shortcutsList),
     add: (item) => ipcRenderer.invoke(IpcChannels.panelShortcutAdd, item),

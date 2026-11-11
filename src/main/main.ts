@@ -19,7 +19,6 @@ import { registerPanelIpc } from './ipc/panel.ipc';
 import { registerScreenshotIpc } from './ipc/screenshot.ipc';
 import { registerSettingsIpc } from './ipc/settings.ipc';
 import { registerShortcutIpc } from './ipc/shortcuts.ipc';
-import { registerSliceIpc } from './ipc/slices.ipc';
 import { registerSnippetIpc } from './ipc/snippets.ipc';
 import { registerSuggestionIpc } from './ipc/suggestions.ipc';
 import { registerVolumeIpc } from './ipc/volume.ipc';
@@ -187,7 +186,6 @@ function startRuntime(startup: Startup): void {
   }
 
   registerWindowIpc();
-  registerSliceIpc(slices);
   registerShortcutIpc(shortcuts, slices);
   registerSnippetIpc(snippets);
   registerSuggestionIpc(suggestions);

@@ -6,6 +6,7 @@ import type { SliceService } from '../services/slice.service';
 import { UserError } from '../services/user-error';
 import { takePanelFormRequest } from '../windows/panel-window';
 import { registerShortcutIpc } from './shortcuts.ipc';
+import { eventFor } from './fake-sender';
 
 vi.mock('electron', () => ({
   app: { getFileIcon: vi.fn() },
@@ -55,19 +56,28 @@ beforeEach(() => {
 
 describe('shortcut messages', () => {
   it('opens by id only', async () => {
-    await handlerFor(IpcChannels.shortcutsOpen)({}, 'abc');
+    await handlerFor(IpcChannels.shortcutsOpen)(
+      eventFor(IpcChannels.shortcutsOpen),
+      'abc',
+    );
     expect(shortcuts.open).toHaveBeenCalledExactlyOnceWith('abc');
   });
 
   it('rejects a path sent in place of an id', async () => {
     await expect(
-      handlerFor(IpcChannels.shortcutsOpen)({}, 'x'.repeat(65)),
+      handlerFor(IpcChannels.shortcutsOpen)(
+        eventFor(IpcChannels.shortcutsOpen),
+        'x'.repeat(65),
+      ),
     ).rejects.toThrow();
     expect(shortcuts.open).not.toHaveBeenCalled();
   });
 
   it('approves an app before saving it', async () => {
-    await handlerFor(IpcChannels.panelShortcutAdd)({}, app);
+    await handlerFor(IpcChannels.panelShortcutAdd)(
+      eventFor(IpcChannels.panelShortcutAdd),
+      app,
+    );
     expect(slices.allowApp).toHaveBeenCalledExactlyOnceWith('C:\\e.exe');
     expect(slices.allowApp.mock.invocationCallOrder[0]).toBeLessThan(
       shortcuts.add.mock.invocationCallOrder[0],
@@ -79,7 +89,10 @@ describe('shortcut messages', () => {
       throw new UserError('Nothing found at that path.');
     });
     await expect(
-      handlerFor(IpcChannels.panelShortcutAdd)({}, app),
+      handlerFor(IpcChannels.panelShortcutAdd)(
+        eventFor(IpcChannels.panelShortcutAdd),
+        app,
+      ),
     ).resolves.toEqual({ ok: false, error: 'Nothing found at that path.' });
     expect(slices.allowApp).not.toHaveBeenCalled();
     expect(shortcuts.add).not.toHaveBeenCalled();
@@ -92,7 +105,7 @@ describe('shortcut messages', () => {
     });
     await expect(
       handlerFor(IpcChannels.panelShortcutUpdate)(
-        {},
+        eventFor(IpcChannels.panelShortcutUpdate),
         { id: 'a', label: 'E', target: 'C:\\typo.exe' },
       ),
     ).resolves.toEqual({ ok: false, error: 'Nothing found at that path.' });
@@ -101,7 +114,10 @@ describe('shortcut messages', () => {
   });
 
   it('does not approve anything for a link', async () => {
-    await handlerFor(IpcChannels.panelShortcutAdd)({}, link);
+    await handlerFor(IpcChannels.panelShortcutAdd)(
+      eventFor(IpcChannels.panelShortcutAdd),
+      link,
+    );
     expect(slices.allowApp).not.toHaveBeenCalled();
     expect(shortcuts.add).toHaveBeenCalledOnce();
   });
@@ -109,7 +125,7 @@ describe('shortcut messages', () => {
   it('rejects a file link without saving', async () => {
     await expect(
       handlerFor(IpcChannels.panelShortcutAdd)(
-        {},
+        eventFor(IpcChannels.panelShortcutAdd),
         { ...link, target: 'file:///C:/a' },
       ),
     ).rejects.toThrow();
@@ -119,7 +135,7 @@ describe('shortcut messages', () => {
   it('approves the new path when an app shortcut is edited', async () => {
     shortcuts.find.mockReturnValue({ type: 'app' });
     await handlerFor(IpcChannels.panelShortcutUpdate)(
-      {},
+      eventFor(IpcChannels.panelShortcutUpdate),
       { id: 'a', label: 'E', target: 'C:\\new.exe' },
     );
     expect(slices.allowApp).toHaveBeenCalledExactlyOnceWith('C:\\new.exe');
@@ -129,39 +145,61 @@ describe('shortcut messages', () => {
   it('does not approve a link that is edited', async () => {
     shortcuts.find.mockReturnValue({ type: 'link' });
     await handlerFor(IpcChannels.panelShortcutUpdate)(
-      {},
+      eventFor(IpcChannels.panelShortcutUpdate),
       { id: 'a', label: 'L', target: 'C:\\evil.exe' },
     );
     expect(slices.allowApp).not.toHaveBeenCalled();
   });
 
   it('passes the row and order when moving', async () => {
-    await handlerFor(IpcChannels.panelShortcutsReorder)({}, 'g', ['a', 'b']);
+    await handlerFor(IpcChannels.panelShortcutsReorder)(
+      eventFor(IpcChannels.panelShortcutsReorder),
+      'g',
+      ['a', 'b'],
+    );
     expect(shortcuts.reorder).toHaveBeenCalledExactlyOnceWith('g', ['a', 'b']);
   });
 
   it('passes a full apps row of 18 when reordering', async () => {
     const ids = Array.from({ length: 18 }, (_, index) => `app${index}`);
-    await handlerFor(IpcChannels.panelShortcutsReorder)({}, null, ids);
+    await handlerFor(IpcChannels.panelShortcutsReorder)(
+      eventFor(IpcChannels.panelShortcutsReorder),
+      null,
+      ids,
+    );
     expect(shortcuts.reorder).toHaveBeenCalledExactlyOnceWith(null, ids);
   });
 
   it('refuses a reorder longer than any row', async () => {
     const ids = Array.from({ length: 19 }, (_, index) => `app${index}`);
     await expect(
-      handlerFor(IpcChannels.panelShortcutsReorder)({}, null, ids),
+      handlerFor(IpcChannels.panelShortcutsReorder)(
+        eventFor(IpcChannels.panelShortcutsReorder),
+        null,
+        ids,
+      ),
     ).rejects.toThrow();
     expect(shortcuts.reorder).not.toHaveBeenCalled();
   });
 
   it('passes the shortcut, row and place when moving to another row', async () => {
-    await handlerFor(IpcChannels.panelShortcutMove)({}, 'a', 'g', 2);
+    await handlerFor(IpcChannels.panelShortcutMove)(
+      eventFor(IpcChannels.panelShortcutMove),
+      'a',
+      'g',
+      2,
+    );
     expect(shortcuts.move).toHaveBeenCalledExactlyOnceWith('a', 'g', 2);
   });
 
   it.each([-1, 8, 1.5, '1'])('refuses the place %j', async (index) => {
     await expect(
-      handlerFor(IpcChannels.panelShortcutMove)({}, 'a', null, index),
+      handlerFor(IpcChannels.panelShortcutMove)(
+        eventFor(IpcChannels.panelShortcutMove),
+        'a',
+        null,
+        index,
+      ),
     ).rejects.toThrow();
     expect(shortcuts.move).not.toHaveBeenCalled();
   });
@@ -169,7 +207,9 @@ describe('shortcut messages', () => {
   it('hands over a waiting form request', async () => {
     vi.mocked(takePanelFormRequest).mockReturnValue({ kind: 'group' });
     await expect(
-      handlerFor(IpcChannels.panelTakeFormRequest)({}),
+      handlerFor(IpcChannels.panelTakeFormRequest)(
+        eventFor(IpcChannels.panelTakeFormRequest),
+      ),
     ).resolves.toEqual({ ok: true, value: { kind: 'group' } });
   });
 });

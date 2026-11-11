@@ -29,6 +29,16 @@ export const Settings = z.object({
 
 export const SettingsUpdate = Settings.partial();
 
+// What the donut may change from its Settings circles.
+export const PieLookUpdate = Settings.pick({
+  theme: true,
+  accent: true,
+  size: true,
+  pin: true,
+})
+  .partial()
+  .strict();
+
 export type Theme = z.infer<typeof Theme>;
 export type PieSize = z.infer<typeof PieSize>;
 export type Pin = z.infer<typeof Pin>;
@@ -36,6 +46,7 @@ export type OnTop = z.infer<typeof OnTop>;
 export type OnOff = z.infer<typeof OnOff>;
 export type Settings = z.infer<typeof Settings>;
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;
+export type PieLookUpdate = z.infer<typeof PieLookUpdate>;
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',

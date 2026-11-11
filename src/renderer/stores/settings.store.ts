@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { DEFAULT_SETTINGS } from '../../shared/schemas/settings.schema';
-import type { Settings, SettingsUpdate } from '../../shared/types';
+import type { PieLookUpdate, Settings } from '../../shared/types';
 import { bridge } from '../api/bridge';
 
 interface SettingsState extends Settings {
   load: () => Promise<void>;
-  update: (changes: SettingsUpdate) => Promise<void>;
+  update: (changes: PieLookUpdate) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>()((set) => ({

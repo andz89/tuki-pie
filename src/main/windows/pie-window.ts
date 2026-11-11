@@ -7,6 +7,7 @@ import { LIST_EXTRA_WIDTH } from '../../shared/types';
 import type { ListSide } from '../../shared/types';
 import { WINDOW_SIZE, pieWindowBounds } from './pie-position';
 import { isQuitting } from './quitting';
+import { setWindowRole } from '../ipc/ipc-access';
 
 let pieWindow: BrowserWindow | null = null;
 let scale = 1;
@@ -62,6 +63,8 @@ export function createPieWindow(): void {
       sandbox: true,
     },
   });
+  // Decides which messages this window may send, see ipc-access.ts.
+  setWindowRole(window.webContents, 'pie');
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     window.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);

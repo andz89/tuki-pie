@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron';
 import path from 'node:path';
 import { IpcChannels } from '../../shared/ipc-channels';
 import type { PanelFormRequest } from '../../shared/types';
+import { setWindowRole } from '../ipc/ipc-access';
 
 let panelWindow: BrowserWindow | null = null;
 let pendingForm: PanelFormRequest | null = null;
@@ -52,6 +53,8 @@ export function openPanelWindow(): void {
       sandbox: true,
     },
   });
+  // Decides which messages this window may send, see ipc-access.ts.
+  setWindowRole(window.webContents, 'panel');
   window.setMenu(null);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {

@@ -4,6 +4,7 @@ import { IpcChannels } from '../../shared/ipc-channels';
 import type { SnippetService } from '../services/snippet.service';
 import { UserError } from '../services/user-error';
 import { registerSnippetIpc } from './snippets.ipc';
+import { eventFor } from './fake-sender';
 
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }));
 
@@ -31,13 +32,19 @@ beforeEach(() => {
 
 describe('snippet messages', () => {
   it('copies by id only', async () => {
-    await handlerFor(IpcChannels.snippetsCopy)({}, 'abc');
+    await handlerFor(IpcChannels.snippetsCopy)(
+      eventFor(IpcChannels.snippetsCopy),
+      'abc',
+    );
     expect(snippets.copy).toHaveBeenCalledExactlyOnceWith('abc');
   });
 
   it('rejects text sent in place of an id', async () => {
     await expect(
-      handlerFor(IpcChannels.snippetsCopy)({}, 'x'.repeat(65)),
+      handlerFor(IpcChannels.snippetsCopy)(
+        eventFor(IpcChannels.snippetsCopy),
+        'x'.repeat(65),
+      ),
     ).rejects.toThrow();
     expect(snippets.copy).not.toHaveBeenCalled();
   });
@@ -45,7 +52,7 @@ describe('snippet messages', () => {
   it('refuses text over the limit', async () => {
     await expect(
       handlerFor(IpcChannels.panelSnippetAdd)(
-        {},
+        eventFor(IpcChannels.panelSnippetAdd),
         { label: 'A', content: 'x'.repeat(10001) },
       ),
     ).rejects.toThrow();
@@ -55,7 +62,10 @@ describe('snippet messages', () => {
   it('refuses more ids than snippets', async () => {
     const ids = Array.from({ length: 9 }, (_, n) => `id-${n}`);
     await expect(
-      handlerFor(IpcChannels.panelSnippetsReorder)({}, ids),
+      handlerFor(IpcChannels.panelSnippetsReorder)(
+        eventFor(IpcChannels.panelSnippetsReorder),
+        ids,
+      ),
     ).rejects.toThrow();
     expect(snippets.reorder).not.toHaveBeenCalled();
   });
@@ -65,13 +75,19 @@ describe('snippet messages', () => {
       throw new UserError('Could not copy that snippet.');
     });
     await expect(
-      handlerFor(IpcChannels.snippetsCopy)({}, 'abc'),
+      handlerFor(IpcChannels.snippetsCopy)(
+        eventFor(IpcChannels.snippetsCopy),
+        'abc',
+      ),
     ).resolves.toEqual({ ok: false, error: 'Could not copy that snippet.' });
   });
 
   it('saves a valid new snippet', async () => {
     const item = { label: 'A', content: 'text' };
-    await handlerFor(IpcChannels.panelSnippetAdd)({}, item);
+    await handlerFor(IpcChannels.panelSnippetAdd)(
+      eventFor(IpcChannels.panelSnippetAdd),
+      item,
+    );
     expect(snippets.add).toHaveBeenCalledExactlyOnceWith(item);
   });
 });

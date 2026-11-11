@@ -7,7 +7,11 @@ import type {
 } from './schemas/note.schema';
 import type { LinkFilter } from './link-rules';
 import type { PageData, PageReport } from './schemas/page-info.schema';
-import type { Settings, SettingsUpdate } from './schemas/settings.schema';
+import type {
+  PieLookUpdate,
+  Settings,
+  SettingsUpdate,
+} from './schemas/settings.schema';
 import type {
   NewShortcut,
   PanelFormRequest,
@@ -50,7 +54,7 @@ export type {
   ShortcutEdit,
   ShortcutType,
 };
-export type { Settings, SettingsUpdate };
+export type { PieLookUpdate, Settings, SettingsUpdate };
 export type { OnOff, Theme } from './schemas/settings.schema';
 
 export type VolumeChange = 'up' | 'down' | 'mute';
@@ -127,10 +131,6 @@ export type Result<Value = void> =
 
 // What the donut window can do, available to it as `window.pie`.
 export interface PieBridge {
-  slices: {
-    list(): Promise<Result<Slice[]>>;
-    open(id: string): Promise<Result>;
-  };
   shortcuts: {
     list(): Promise<Result<Shortcut[]>>;
     open(id: string): Promise<Result>;
@@ -143,7 +143,8 @@ export interface PieBridge {
   };
   settings: {
     get(): Promise<Result<Settings>>;
-    update(changes: SettingsUpdate): Promise<Result<Settings>>;
+    // Only the look: theme, accent, size and pin.
+    update(changes: PieLookUpdate): Promise<Result<Settings>>;
   };
   screenshot: {
     take(mode: ScreenshotMode): Promise<Result>;
@@ -230,13 +231,6 @@ export interface ScreenshotBridge {
 
 // What the settings window can do, available to it as `window.piePanel`.
 export interface PanelBridge {
-  slices: {
-    list(): Promise<Result<Slice[]>>;
-    add(item: NewSlice): Promise<Result<Slice[]>>;
-    update(edit: SliceEdit): Promise<Result<Slice[]>>;
-    remove(id: string): Promise<Result<Slice[]>>;
-    reorder(ids: string[]): Promise<Result<Slice[]>>;
-  };
   shortcuts: {
     list(): Promise<Result<Shortcut[]>>;
     add(item: NewShortcut): Promise<Result<Shortcut[]>>;

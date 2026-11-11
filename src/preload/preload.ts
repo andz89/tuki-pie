@@ -3,10 +3,6 @@ import { IpcChannels } from '../shared/ipc-channels';
 import type { PieBridge, PiePhase } from '../shared/types';
 
 const bridge: PieBridge = {
-  slices: {
-    list: () => ipcRenderer.invoke(IpcChannels.slicesList),
-    open: (id) => ipcRenderer.invoke(IpcChannels.slicesOpen, id),
-  },
   shortcuts: {
     list: () => ipcRenderer.invoke(IpcChannels.shortcutsList),
     open: (id) => ipcRenderer.invoke(IpcChannels.shortcutsOpen, id),
@@ -19,7 +15,7 @@ const bridge: PieBridge = {
   settings: {
     get: () => ipcRenderer.invoke(IpcChannels.settingsGet),
     update: (changes) =>
-      ipcRenderer.invoke(IpcChannels.settingsUpdate, changes),
+      ipcRenderer.invoke(IpcChannels.pieSettingsUpdate, changes),
   },
   screenshot: {
     take: (mode) => ipcRenderer.invoke(IpcChannels.screenshotTake, mode),

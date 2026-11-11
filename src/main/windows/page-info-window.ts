@@ -12,6 +12,7 @@ import {
   chooseStartAddress,
 } from '../page-info/start-address';
 import { createSiteViewer } from './site-window';
+import { setWindowRole } from '../ipc/ipc-access';
 
 let pageInfoWindow: BrowserWindow | null = null;
 let controller: PageInfoController | null = null;
@@ -153,6 +154,8 @@ function showOrCreateWindow(): PageInfoController {
       sandbox: true,
     },
   });
+  // Decides which messages this window may send, see ipc-access.ts.
+  setWindowRole(window.webContents, 'page-info');
   window.setMenu(null);
   window.setAlwaysOnTop(keepOnTop);
 

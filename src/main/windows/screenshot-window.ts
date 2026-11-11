@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron';
 import type { Display, NativeImage } from 'electron';
 import path from 'node:path';
 import type { Area } from '../screenshot/screenshot-geometry';
+import { setWindowRole } from '../ipc/ipc-access';
 
 type PickDone = (selection: Area | null) => void | Promise<void>;
 
@@ -46,6 +47,8 @@ export function openSectionPicker(
       sandbox: true,
     },
   });
+  // Decides which messages this window may send, see ipc-access.ts.
+  setWindowRole(window.webContents, 'screenshot');
   window.setAlwaysOnTop(true, 'screen-saver');
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {

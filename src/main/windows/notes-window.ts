@@ -4,6 +4,7 @@ import path from 'node:path';
 import { IpcChannels } from '../../shared/ipc-channels';
 import { isQuitting } from './quitting';
 import { saveBeforeClose } from './save-before-close';
+import { setWindowRole } from '../ipc/ipc-access';
 
 // Long enough for one local database write, short enough not to feel stuck.
 const SAVE_ON_CLOSE_MS = 2000;
@@ -73,6 +74,8 @@ export function openNotesWindow(noteId: string | null = null): void {
       sandbox: true,
     },
   });
+  // Decides which messages this window may send, see ipc-access.ts.
+  setWindowRole(window.webContents, 'notes');
   window.setMenu(null);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
