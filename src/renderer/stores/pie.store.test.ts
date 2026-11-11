@@ -548,17 +548,17 @@ describe('app icons', () => {
   });
 
   it('reads each app icon once and keeps it', async () => {
-    await store().loadAppIcon('app-1', 'C:\a.exe');
-    await store().loadAppIcon('app-1', 'C:\a.exe');
-    expect(store().appIcons[appIconKey('app-1', 'C:\a.exe')]).toBe(
+    await store().loadAppIcon('app-1', 'C:\\a.exe');
+    await store().loadAppIcon('app-1', 'C:\\a.exe');
+    expect(store().appIcons[appIconKey('app-1', 'C:\\a.exe')]).toBe(
       'data:image/png;base64,AA',
     );
     expect(bridge.shortcuts.icon).toHaveBeenCalledTimes(1);
   });
 
   it('reads the icon again once the app points somewhere else', async () => {
-    await store().loadAppIcon('app-1', 'C:\a.exe');
-    await store().loadAppIcon('app-1', 'C:\b.exe');
+    await store().loadAppIcon('app-1', 'C:\\a.exe');
+    await store().loadAppIcon('app-1', 'C:\\b.exe');
     expect(bridge.shortcuts.icon).toHaveBeenCalledTimes(2);
   });
 
@@ -567,18 +567,18 @@ describe('app icons', () => {
       ok: false,
       error: 'busy',
     });
-    await store().loadAppIcon('app-1', 'C:\a.exe');
-    expect(store().appIcons[appIconKey('app-1', 'C:\a.exe')]).toBeUndefined();
-    await store().loadAppIcon('app-1', 'C:\a.exe');
-    expect(store().appIcons[appIconKey('app-1', 'C:\a.exe')]).toBe(
+    await store().loadAppIcon('app-1', 'C:\\a.exe');
+    expect(store().appIcons[appIconKey('app-1', 'C:\\a.exe')]).toBeUndefined();
+    await store().loadAppIcon('app-1', 'C:\\a.exe');
+    expect(store().appIcons[appIconKey('app-1', 'C:\\a.exe')]).toBe(
       'data:image/png;base64,AA',
     );
   });
 
   it('asks once while a read is still on its way', async () => {
     await Promise.all([
-      store().loadAppIcon('app-1', 'C:\a.exe'),
-      store().loadAppIcon('app-1', 'C:\a.exe'),
+      store().loadAppIcon('app-1', 'C:\\a.exe'),
+      store().loadAppIcon('app-1', 'C:\\a.exe'),
     ]);
     expect(bridge.shortcuts.icon).toHaveBeenCalledTimes(1);
   });

@@ -186,8 +186,7 @@ interface PieState {
 }
 
 export function appIconKey(id: string, target: string | null): string {
-  return `${id}
-${target ?? ''}`;
+  return `${id}\n${target ?? ''}`;
 }
 
 export const usePieStore = create<PieState>()((set, get) => ({
