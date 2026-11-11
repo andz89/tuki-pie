@@ -135,8 +135,9 @@ function startRuntime(startup: Startup): void {
   startup.onQuit(() => db.close());
   const allowedApps = new AllowedAppRepository(db);
   const shortcutRepository = new ShortcutRepository(db);
+  const sliceRepository = new SliceRepository(db);
   const slices = new SliceService(
-    new SliceRepository(db),
+    sliceRepository,
     allowedApps,
     kindOfPath,
     (target) => shell.openPath(target),
@@ -148,6 +149,10 @@ function startRuntime(startup: Startup): void {
     kindOfPath,
     (target) => shell.openPath(target),
     (url) => shell.openExternal(url),
+    (path) =>
+      sliceRepository
+        .findAll()
+        .some((slice) => slice.type === 'app' && slice.path === path),
   );
   const snippets = new SnippetService(new SnippetRepository(db), (text) =>
     clipboard.writeText(text),

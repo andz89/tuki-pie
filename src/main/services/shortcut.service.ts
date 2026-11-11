@@ -31,6 +31,8 @@ export class ShortcutService {
     private readonly kindOf: (path: string) => PathKind,
     private readonly openPath: (path: string) => Promise<string>,
     private readonly openExternal: (url: string) => Promise<void>,
+    // Whether a donut slice still opens this app, so it stays allowed.
+    private readonly isUsedBySlice: (path: string) => boolean = () => false,
   ) {}
 
   list(): Shortcut[] {
@@ -91,8 +93,12 @@ export class ShortcutService {
 
   update(edit: ShortcutEdit): Shortcut[] {
     this.assertCanUpdate(edit);
-    this.assertAllowed(this.existing(edit.id).type, edit.target);
+    const before = this.existing(edit.id);
+    this.assertAllowed(before.type, edit.target);
     this.shortcuts.update(edit);
+    if (before.target !== edit.target) {
+      this.forgetUnused([before]);
+    }
     return this.list();
   }
 
@@ -102,13 +108,40 @@ export class ShortcutService {
       throw new UserError(SHORTCUT_GONE);
     }
 
+    // A group takes what is inside it along.
+    const gone = [
+      shortcut,
+      ...this.list().filter(({ parentId }) => parentId === id),
+    ];
     this.shortcuts.removeAndRenumber(
       id,
       this.rowIds(shortcut.parentId, shortcut.type).filter(
         (other) => other !== id,
       ),
     );
+    this.forgetUnused(gone);
     return this.list();
+  }
+
+  // Saving an app or path shortcut approves its target. Once no shortcut or
+  // slice opens that target any more, the approval goes too, so the allowed
+  // list doesn't keep growing.
+  private forgetUnused(gone: Shortcut[]): void {
+    const stillUsed = new Set(
+      this.list()
+        .filter(({ type }) => type === 'app' || type === 'path')
+        .map(({ target }) => target),
+    );
+    for (const { type, target } of gone) {
+      if (
+        (type === 'app' || type === 'path') &&
+        target !== null &&
+        !stillUsed.has(target) &&
+        !this.isUsedBySlice(target)
+      ) {
+        this.allowedApps.remove(target);
+      }
+    }
   }
 
   // Apps are ordered among themselves, links and groups among theirs.

@@ -413,3 +413,63 @@ describe('moving to another row', () => {
     );
   });
 });
+
+describe('the allowed list after a shortcut goes', () => {
+  const pathShortcut = (
+    label: string,
+    parentId: string | null = null,
+  ): NewShortcut => ({ type: 'path', label, target: FOLDER, parentId });
+
+  beforeEach(() => {
+    kinds[FOLDER] = 'folder';
+  });
+
+  it('forgets an app once its shortcut is removed', () => {
+    allowedApps.add(APP);
+    const [item] = service.add(app);
+    service.remove(item.id);
+    expect(allowedApps.has(APP)).toBe(false);
+  });
+
+  it('keeps an app another shortcut still opens', () => {
+    allowedApps.add(FOLDER);
+    service.add(pathShortcut('One'));
+    const items = service.add(pathShortcut('Two'));
+    service.remove(items.find(({ label }) => label === 'One')!.id);
+    expect(allowedApps.has(FOLDER)).toBe(true);
+  });
+
+  it('forgets the paths inside a group removed with it', () => {
+    allowedApps.add(FOLDER);
+    const groupId = addGroup();
+    service.add(pathShortcut('Inside', groupId));
+    service.remove(groupId);
+    expect(allowedApps.has(FOLDER)).toBe(false);
+  });
+
+  it('forgets the old target when a shortcut points somewhere else', () => {
+    const OTHER = 'C:/Work/Other';
+    kinds[OTHER] = 'folder';
+    allowedApps.add(FOLDER);
+    allowedApps.add(OTHER);
+    const [item] = service.add(pathShortcut('Work'));
+    service.update({ id: item.id, label: 'Work', target: OTHER });
+    expect(allowedApps.has(FOLDER)).toBe(false);
+    expect(allowedApps.has(OTHER)).toBe(true);
+  });
+
+  it('keeps an app a slice still opens', () => {
+    const guarded = new ShortcutService(
+      new ShortcutRepository(db),
+      allowedApps,
+      (file) => kinds[file] ?? null,
+      openPath,
+      openExternal,
+      (file) => file === APP,
+    );
+    allowedApps.add(APP);
+    const [item] = guarded.add(app);
+    guarded.remove(item.id);
+    expect(allowedApps.has(APP)).toBe(true);
+  });
+});
