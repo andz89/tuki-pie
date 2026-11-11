@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, RefObject } from 'react';
 import { canOpen } from '../../shared/link-rules';
 import type { LinkFilter } from '../../shared/link-rules';
@@ -21,13 +21,15 @@ interface ImageRowProps {
   copied: boolean;
   canOpenIt: boolean;
   chromeConnected: boolean;
-  onBroken: () => void;
-  onEnlarge: () => void;
-  onCopy: () => void;
-  onOpen: () => void;
+  // Take the address, so they stay the same for every row: a memoized row
+  // only redraws when its own image changes.
+  onBroken: (url: string) => void;
+  onEnlarge: (url: string) => void;
+  onCopy: (url: string) => void;
+  onOpen: (url: string) => void;
 }
 
-function ImageRow({
+const ImageRow = memo(function ImageRow({
   url,
   pageUrl,
   broken,
@@ -45,9 +47,9 @@ function ImageRow({
 
   useEffect(() => {
     if (source === null) {
-      onBroken();
+      onBroken(url);
     }
-  }, [source, onBroken]);
+  }, [source, onBroken, url]);
 
   return (
     <li className="link-row image-row">
@@ -58,14 +60,14 @@ function ImageRow({
             className="image-thumb-open"
             aria-label="Show this image full size"
             title="Click to enlarge"
-            onClick={onEnlarge}
+            onClick={() => onEnlarge(url)}
           >
             <img
               src={source}
               alt=""
               loading="lazy"
               referrerPolicy="no-referrer"
-              onError={onBroken}
+              onError={() => onBroken(url)}
             />
           </button>
         ) : (
@@ -84,7 +86,7 @@ function ImageRow({
             type="button"
             className="link-button"
             title="Copy the address"
-            onClick={onCopy}
+            onClick={() => onCopy(url)}
           >
             {copied ? 'Copied' : 'Copy URL'}
           </button>
@@ -94,7 +96,7 @@ function ImageRow({
               className="link-button"
               disabled={!chromeConnected}
               title="Open in a background tab in Chrome"
-              onClick={onOpen}
+              onClick={() => onOpen(url)}
             >
               Open
             </button>
@@ -103,7 +105,7 @@ function ImageRow({
       </div>
     </li>
   );
-}
+});
 
 interface ImageViewerProps {
   dialogRef: RefObject<HTMLDialogElement | null>;
@@ -200,7 +202,7 @@ function ImageViewer({
   );
 }
 
-export function PageImages({
+export const PageImages = memo(function PageImages({
   pageKey,
   images,
   pageUrl,
@@ -238,34 +240,49 @@ export function PageImages({
     return () => clearTimeout(timer);
   }, [copied]);
 
-  if (images.length === 0) {
-    return <InfoEmpty>This page has no images.</InfoEmpty>;
-  }
+  const shown = useMemo(() => filterImages(images, filter), [images, filter]);
 
-  const filtering = filter.trim() !== '';
-  const shown = filterImages(images, filter);
-  const brokenCount = images.filter((url) => broken.has(url)).length;
-  const allOpenable = shown.filter((url) => canOpen(url, linkFilter));
-  const toOpen = allOpenable.slice(0, MAX_OPEN_LINKS);
+  const markBroken = useCallback(
+    (url: string) =>
+      setBroken((current) =>
+        current.has(url) ? current : new Set(current).add(url),
+      ),
+    [],
+  );
 
-  const markBroken = (url: string) =>
-    setBroken((current) =>
-      current.has(url) ? current : new Set(current).add(url),
-    );
-
-  const changeFilter = (value: string) => {
-    setFilter(value);
-    setConfirming(false);
-    setOpened(0);
-  };
-
-  const copy = async (url: string) => {
+  const copy = useCallback(async (url: string) => {
     try {
       await navigator.clipboard.writeText(url);
       setCopied(url);
     } catch {
       // The window lost focus mid-copy. Nothing to show.
     }
+  }, []);
+  const copyImage = useCallback((url: string) => void copy(url), [copy]);
+
+  const enlarge = useCallback((url: string) => {
+    setViewing(url);
+    viewerRef.current?.showModal();
+  }, []);
+
+  const openOne = useCallback(
+    (url: string) => void pageInfoBridge.openLinks([url]),
+    [],
+  );
+
+  if (images.length === 0) {
+    return <InfoEmpty>This page has no images.</InfoEmpty>;
+  }
+
+  const filtering = filter.trim() !== '';
+  const brokenCount = images.filter((url) => broken.has(url)).length;
+  const allOpenable = shown.filter((url) => canOpen(url, linkFilter));
+  const toOpen = allOpenable.slice(0, MAX_OPEN_LINKS);
+
+  const changeFilter = (value: string) => {
+    setFilter(value);
+    setConfirming(false);
+    setOpened(0);
   };
 
   const openAll = async () => {
@@ -364,13 +381,10 @@ export function PageImages({
               copied={copied === url}
               canOpenIt={canOpen(url, linkFilter)}
               chromeConnected={chromeConnected}
-              onBroken={() => markBroken(url)}
-              onEnlarge={() => {
-                setViewing(url);
-                viewerRef.current?.showModal();
-              }}
-              onCopy={() => void copy(url)}
-              onOpen={() => void pageInfoBridge.openLinks([url])}
+              onBroken={markBroken}
+              onEnlarge={enlarge}
+              onCopy={copyImage}
+              onOpen={openOne}
             />
           ))}
         </ul>
@@ -388,4 +402,4 @@ export function PageImages({
       />
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { isMarked } from '../../shared/link-rules';
 import type { LinkFilter } from '../../shared/link-rules';
 import { MAX_OPEN_LINKS } from '../../shared/types';
@@ -52,6 +52,8 @@ const TOKEN_HINT =
 
 const tabsWord = (count: number) => `${count} tab${count === 1 ? '' : 's'}`;
 
+// The handlers take the link, so they stay the same for every row and a
+// memoized row only redraws when its own link, tick or status changes.
 interface LinkRowProps {
   link: NumberedLink;
   marked: boolean;
@@ -59,13 +61,13 @@ interface LinkRowProps {
   status: LinkStatus | undefined;
   copied: boolean;
   chromeConnected: boolean;
-  onShow: () => void;
-  onCopy: () => void;
-  onOpen: () => void;
-  onToggle: () => void;
+  onShow: (link: NumberedLink) => void;
+  onCopy: (link: NumberedLink) => void;
+  onOpen: (link: NumberedLink) => void;
+  onToggle: (link: NumberedLink, included: boolean) => void;
 }
 
-function LinkRow({
+const LinkRow = memo(function LinkRow({
   link,
   marked,
   included,
@@ -90,7 +92,7 @@ function LinkRow({
             ? 'Untick to leave this link out of Open all and the counts'
             : 'Tick to count this link and include it in Open all'
         }
-        onChange={onToggle}
+        onChange={() => onToggle(link, !included)}
       />
       <span className="link-number">{link.index + 1}</span>
       <div className="link-body">
@@ -108,7 +110,7 @@ function LinkRow({
             }
             disabled={!chromeConnected}
             title="Scroll to this link in Chrome and outline it"
-            onClick={onShow}
+            onClick={() => onShow(link)}
           >
             Show on page
           </button>
@@ -116,7 +118,7 @@ function LinkRow({
             type="button"
             className="link-button"
             title="Copy the address"
-            onClick={onCopy}
+            onClick={() => onCopy(link)}
           >
             {copied ? 'Copied' : 'Copy URL'}
           </button>
@@ -126,7 +128,7 @@ function LinkRow({
               className="link-button"
               disabled={!chromeConnected}
               title="Open in a background tab in Chrome"
-              onClick={onOpen}
+              onClick={() => onOpen(link)}
             >
               Open
             </button>
@@ -135,9 +137,9 @@ function LinkRow({
       </div>
     </li>
   );
-}
+});
 
-export function PageLinks({
+export const PageLinks = memo(function PageLinks({
   pageKey,
   links,
   linkFilter,
@@ -179,11 +181,75 @@ export function PageLinks({
     return () => clearTimeout(timer);
   }, [copied]);
 
+  // Worked out again only when what they depend on changes.
+  const visible = useMemo(
+    () => shownLinks(links, linkFilter),
+    [links, linkFilter],
+  );
+  const listed = useMemo(
+    () => (hideDuplicates ? uniqueLinks(visible) : visible),
+    [visible, hideDuplicates],
+  );
+  const shown = useMemo(() => filterLinks(listed, filter), [listed, filter]);
+
+  // The page marks one link at a time, so a new mark replaces the old one.
+  const setStatus = useCallback(
+    (index: number, status: LinkStatus) =>
+      setStatuses((current) => {
+        const next: Record<number, LinkStatus> = {};
+        for (const [key, value] of Object.entries(current)) {
+          if (!(status === 'shown' && value === 'shown')) {
+            next[Number(key)] = value;
+          }
+        }
+        next[index] = status;
+        return next;
+      }),
+    [],
+  );
+
+  const show = useCallback(
+    async ({ index, href }: NumberedLink) => {
+      const result = await pageInfoBridge.showLink(index, href);
+      setStatus(
+        index,
+        result.ok && result.value ? result.value : 'unreachable',
+      );
+    },
+    [setStatus],
+  );
+
+  const copy = useCallback(async ({ index, href }: NumberedLink) => {
+    try {
+      await navigator.clipboard.writeText(href);
+      setCopied(index);
+    } catch {
+      // The window lost focus mid-copy. Nothing to show.
+    }
+  }, []);
+
+  const tickedMarked = useCallback(
+    (urls: string[]) => urls.filter((href) => isMarked(href, linkFilter)),
+    [linkFilter],
+  );
+
+  const openOne = useCallback(
+    ({ href }: NumberedLink) =>
+      void pageInfoBridge.openLinks([href], tickedMarked([href])),
+    [tickedMarked],
+  );
+
+  const toggle = useCallback(
+    ({ href }: NumberedLink, included: boolean) => onChoose(href, included),
+    [onChoose],
+  );
+  const showLink = useCallback((link: NumberedLink) => void show(link), [show]);
+  const copyLink = useCallback((link: NumberedLink) => void copy(link), [copy]);
+
   if (links.length === 0) {
     return <InfoEmpty>This page has no links.</InfoEmpty>;
   }
 
-  const visible = shownLinks(links, linkFilter);
   const hiddenByFilters = links.length - visible.length;
   if (visible.length === 0) {
     return (
@@ -194,10 +260,8 @@ export function PageLinks({
     );
   }
 
-  const listed = hideDuplicates ? uniqueLinks(visible) : visible;
   const duplicates = visible.length - listed.length;
   const filtering = filter.trim() !== '';
-  const shown = filterLinks(listed, filter);
   // Counts and Open all skip what the user left out.
   const visibleIn = includedLinks(visible, choices, linkFilter);
   const listedIn = includedLinks(listed, choices, linkFilter);
@@ -215,40 +279,10 @@ export function PageLinks({
     shown.filter(({ href }) => !isIncluded(href, choices, linkFilter)),
     linkFilter,
   );
-  const tickedMarked = (urls: string[]) =>
-    urls.filter((href) => isMarked(href, linkFilter));
-
   const changeFilter = (value: string) => {
     setFilter(value);
     setConfirming(false);
     setOpened(0);
-  };
-
-  // The page marks one link at a time, so a new mark replaces the old one.
-  const setStatus = (index: number, status: LinkStatus) =>
-    setStatuses((current) => {
-      const next: Record<number, LinkStatus> = {};
-      for (const [key, value] of Object.entries(current)) {
-        if (!(status === 'shown' && value === 'shown')) {
-          next[Number(key)] = value;
-        }
-      }
-      next[index] = status;
-      return next;
-    });
-
-  const show = async ({ index, href }: NumberedLink) => {
-    const result = await pageInfoBridge.showLink(index, href);
-    setStatus(index, result.ok && result.value ? result.value : 'unreachable');
-  };
-
-  const copy = async ({ index, href }: NumberedLink) => {
-    try {
-      await navigator.clipboard.writeText(href);
-      setCopied(index);
-    } catch {
-      // The window lost focus mid-copy. Nothing to show.
-    }
   };
 
   const openAll = async () => {
@@ -372,21 +406,14 @@ export function PageLinks({
               status={statuses[link.index]}
               copied={copied === link.index}
               chromeConnected={chromeConnected}
-              onShow={() => void show(link)}
-              onCopy={() => void copy(link)}
-              onOpen={() =>
-                void pageInfoBridge.openLinks(
-                  [link.href],
-                  tickedMarked([link.href]),
-                )
-              }
-              onToggle={() =>
-                onChoose(link.href, !isIncluded(link.href, choices, linkFilter))
-              }
+              onShow={showLink}
+              onCopy={copyLink}
+              onOpen={openOne}
+              onToggle={toggle}
             />
           ))}
         </ol>
       )}
     </div>
   );
-}
+});
