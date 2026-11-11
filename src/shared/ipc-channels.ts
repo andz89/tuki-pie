@@ -18,6 +18,9 @@ export const IpcChannels = {
   notesTakeRequest: 'notes:take-request',
   notesChanged: 'notes:changed',
   notesOpenRequested: 'notes:open-requested',
+  // Main asks the Notes window to save before it closes; the window answers.
+  notesSaveRequested: 'notes:save-requested',
+  notesSaved: 'notes:saved',
   reminderList: 'reminder:list',
   reminderOpen: 'reminder:open',
   reminderSnooze: 'reminder:snooze',

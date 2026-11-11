@@ -19,6 +19,12 @@ const bridge: NotesBridge = {
   onChanged: (listener) => listen(IpcChannels.notesChanged, listener),
   onOpenRequested: (listener) =>
     listen(IpcChannels.notesOpenRequested, listener),
+  onSaveRequested: (save) =>
+    listen(IpcChannels.notesSaveRequested, () => {
+      void save()
+        .catch(() => undefined)
+        .then(() => ipcRenderer.send(IpcChannels.notesSaved));
+    }),
   settings: {
     get: () => ipcRenderer.invoke(IpcChannels.settingsGet),
   },

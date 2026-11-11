@@ -136,6 +136,9 @@ export function NotesWindow() {
     [showRequested],
   );
 
+  // Main holds the close until this answers.
+  useEffect(() => notesBridge.onSaveRequested(flush), [flush]);
+
   // Closing the window or switching away saves right away.
   useEffect(() => {
     const save = () => void flush();

@@ -201,6 +201,8 @@ export interface NotesBridge {
   takeRequest(): Promise<Result<string | null>>;
   onChanged(listener: () => void): () => void;
   onOpenRequested(listener: () => void): () => void;
+  // Runs before the window closes; the close waits for it, briefly.
+  onSaveRequested(save: () => Promise<void>): () => void;
   settings: {
     get(): Promise<Result<Settings>>;
   };
