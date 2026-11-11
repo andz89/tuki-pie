@@ -134,17 +134,24 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
     if (get().screenshot.status === 'taking') {
       return;
     }
-    const before = get().screenshot;
     set({
-      screenshot: { ...before, status: 'taking', problem: null, notice: null },
+      screenshot: {
+        ...get().screenshot,
+        status: 'taking',
+        problem: null,
+        notice: null,
+      },
     });
     const result = await pageInfoBridge.capture(get().captureSize);
+    // Read again: the page may have changed during the capture, and its old
+    // picture must not come back.
+    const now = get().screenshot;
     set({
       screenshot: result.ok
         ? { status: 'done', shot: result.value, problem: null, notice: null }
         : {
-            ...before,
-            status: before.shot ? 'done' : 'none',
+            ...now,
+            status: now.shot ? 'done' : 'none',
             problem: result.error,
             notice: null,
           },

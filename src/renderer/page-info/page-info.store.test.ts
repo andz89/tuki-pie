@@ -224,6 +224,25 @@ describe('the Screenshot tab', () => {
     expect(store().screenshot).toEqual(NO_SCREENSHOT);
   });
 
+  it('does not bring back the old picture when the page changed mid-capture', async () => {
+    const listener = await listen();
+    usePageInfoStore.setState({
+      screenshot: { ...NO_SCREENSHOT, status: 'done', shot: SHOT },
+    });
+    vi.mocked(pageInfoBridge.capture).mockImplementation(async () => {
+      listener(
+        update({ status: 'done', address: 'https://b.com/', report: REPORT }),
+      );
+      return { ok: false, error: 'The page changed. Try again.' };
+    });
+    await store().takeScreenshot();
+    expect(store().screenshot).toMatchObject({
+      status: 'none',
+      shot: null,
+      problem: 'The page changed. Try again.',
+    });
+  });
+
   it('says where Save put it', async () => {
     vi.mocked(pageInfoBridge.saveCapture).mockResolvedValue(OK);
     await store().saveScreenshot();
