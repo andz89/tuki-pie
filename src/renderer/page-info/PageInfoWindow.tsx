@@ -11,11 +11,10 @@ import { CommentsCard } from './CommentsCard';
 import { DetailsCard } from './DetailsCard';
 import { readLinkFilter } from '../../shared/link-rules';
 import { IssuesCard } from './IssuesCard';
-import { LinkFilters } from './LinkFilters';
+import { LinksTab } from './LinksTab';
 import { PageImages } from './PageImages';
 import { PageDashboard } from './PageDashboard';
 import type { PageInfoTab } from './PageDashboard';
-import { PageLinks } from './PageLinks';
 import { PageScreenshot } from './PageScreenshot';
 import { includedLinks, shownLinks, uniqueLinks } from './page-links';
 import type { LinkChoices } from './page-links';
@@ -40,7 +39,6 @@ export function PageInfoWindow() {
   const settings = usePageInfoStore((state) => state.settings);
   const start = usePageInfoStore((state) => state.start);
   const loadSettings = usePageInfoStore((state) => state.loadSettings);
-  const setLinkFilter = usePageInfoStore((state) => state.setLinkFilter);
 
   const { status, address, report, message } = update;
   const { chromeConnected, reportId } = update;
@@ -49,7 +47,6 @@ export function PageInfoWindow() {
     [settings.linkFilter],
   );
   const [tab, setTab] = useState<PageInfoTab>('dashboard');
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [hideDuplicates, setHideDuplicates] = useState(true);
   // The user's ticks in the Links list, until the next check.
   const [choices, setChoices] = useState<LinkChoices>(new Map());
@@ -86,12 +83,6 @@ export function PageInfoWindow() {
   );
   const resultsRef = useRef<HTMLElement>(null);
   const baseId = useId();
-  const filtersId = `${baseId}-link-filters`;
-  // Built-in rules and your words switched off, plus token marking.
-  const rulesOff =
-    linkFilter.off.length +
-    linkFilter.words.filter(({ on }) => !on).length +
-    (linkFilter.tokens ? 0 : 1);
   const tabIds = {
     dashboard: {
       tab: `${baseId}-dashboard-tab`,
@@ -235,47 +226,17 @@ export function PageInfoWindow() {
             aria-labelledby={tabIds.links.tab}
             hidden={tab !== 'links'}
           >
-            <section className="info-card" aria-label="Links">
-              <div className="link-filters-bar">
-                <label className="filter-check">
-                  <input
-                    type="checkbox"
-                    checked={hideDuplicates}
-                    onChange={() => setHideDuplicates(!hideDuplicates)}
-                  />
-                  <span>Hide duplicates</span>
-                </label>
-                <button
-                  type="button"
-                  className={
-                    filtersOpen ? 'link-button button-on' : 'link-button'
-                  }
-                  aria-expanded={filtersOpen}
-                  aria-controls={filtersId}
-                  onClick={() => setFiltersOpen(!filtersOpen)}
-                >
-                  Link filters{rulesOff > 0 ? ` (${rulesOff} off)` : ''}
-                </button>
-              </div>
-              {filtersOpen && (
-                <div id={filtersId} className="link-filters-panel">
-                  <LinkFilters
-                    filter={linkFilter}
-                    onChange={(filter) => void setLinkFilter(filter)}
-                  />
-                </div>
-              )}
-              <PageLinks
-                pageKey={reportId}
-                links={report.links}
-                linkFilter={linkFilter}
-                hideDuplicates={hideDuplicates}
-                choices={choices}
-                onChoose={choose}
-                onIncludeAll={includeAll}
-                chromeConnected={chromeConnected}
-              />
-            </section>
+            <LinksTab
+              pageKey={reportId}
+              links={report.links}
+              linkFilter={linkFilter}
+              hideDuplicates={hideDuplicates}
+              onHideDuplicates={setHideDuplicates}
+              choices={choices}
+              onChoose={choose}
+              onIncludeAll={includeAll}
+              chromeConnected={chromeConnected}
+            />
           </div>
         )}
         {report && (

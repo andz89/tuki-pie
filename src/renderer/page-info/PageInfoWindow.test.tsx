@@ -103,6 +103,32 @@ describe('PageInfoWindow', () => {
     expect(container.querySelectorAll('.link-row')).toHaveLength(300);
   });
 
+  it('opens the Link filters panel from the Links tab', async () => {
+    await showReport();
+    const toggle = [...container.querySelectorAll('button')].find((each) =>
+      each.textContent?.startsWith('Link filters'),
+    )!;
+    expect(container.querySelector('.link-filters-panel')).toBeNull();
+    act(() => toggle.click());
+    expect(container.querySelector('.link-filters-panel')).not.toBeNull();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('shows duplicate links again when Hide duplicates is unticked', async () => {
+    PAGE.links.push({ href: 'https://example.com/page-0', hidden: false });
+    try {
+      await showReport();
+      expect(container.querySelectorAll('.link-row')).toHaveLength(300);
+      const hide = [...container.querySelectorAll('label')]
+        .find((label) => label.textContent?.includes('Hide duplicates'))!
+        .querySelector('input')!;
+      act(() => hide.click());
+      expect(container.querySelectorAll('.link-row')).toHaveLength(301);
+    } finally {
+      PAGE.links.pop();
+    }
+  });
+
   it('does not rebuild the link lists while you type an address', async () => {
     await showReport();
     vi.mocked(shownLinks).mockClear();
