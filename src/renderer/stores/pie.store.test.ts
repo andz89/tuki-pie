@@ -111,9 +111,9 @@ describe('the Zip slice', () => {
     expect(store().zipNaming).toBe(false);
   });
 
-  it('closes the name box when the donut opens again', async () => {
+  it('closes the name box when the donut opens again', () => {
     usePieStore.setState({ zipNaming: true });
-    await store().load();
+    store().opened();
     expect(store().zipNaming).toBe(false);
   });
 
@@ -129,11 +129,16 @@ describe('the Zip slice', () => {
 });
 
 describe('loading', () => {
-  it('starts each opening with nothing highlighted and no old error', async () => {
-    usePieStore.setState({ hoveredIndex: 0, error: 'old' });
+  it('clears an old error', async () => {
+    usePieStore.setState({ error: 'old' });
     await store().load();
-    expect(store().hoveredIndex).toBeNull();
     expect(store().error).toBeNull();
+  });
+
+  it('keeps the highlight on a reload, as a click on the donut gives it focus', async () => {
+    usePieStore.setState({ hoveredIndex: 1 });
+    await store().load();
+    expect(store().hoveredIndex).toBe(1);
   });
 
   it('keeps the highlight while pinned, so a first click still lands', async () => {
@@ -434,6 +439,47 @@ describe('the Shortcuts list', () => {
     store().setHovered(SETTINGS_INDEX);
     expect(store().listSide).toBeNull();
     expect(bridge.window.setListSide).toHaveBeenLastCalledWith(null);
+  });
+});
+
+describe('opening the window', () => {
+  beforeEach(() => {
+    vi.mocked(bridge.window.setListSide).mockClear();
+    usePieStore.setState({
+      listSide: null,
+      hoveredIndex: null,
+      openIndex: null,
+      lockedIndex: null,
+    });
+  });
+
+  it('starts an unpinned donut with nothing highlighted or open', () => {
+    store().setHovered(SHORTCUTS_INDEX);
+    store().opened();
+    expect(store()).toMatchObject({
+      hoveredIndex: null,
+      openIndex: null,
+      listSide: null,
+    });
+  });
+
+  it('asks again for room for the list a pinned donut still shows', () => {
+    useSettingsStore.setState({ pin: 'pinned' });
+    store().setHovered(SHORTCUTS_INDEX);
+    vi.mocked(bridge.window.setListSide).mockClear();
+    // Main made the window a square again at the cursor.
+    store().opened();
+    expect(store().openIndex).toBe(SHORTCUTS_INDEX);
+    expect(store().listSide).not.toBeNull();
+    expect(bridge.window.setListSide).toHaveBeenCalledExactlyOnceWith(
+      store().listSide,
+    );
+  });
+
+  it('asks for nothing when a pinned donut shows no list', () => {
+    useSettingsStore.setState({ pin: 'pinned' });
+    store().opened();
+    expect(bridge.window.setListSide).not.toHaveBeenCalled();
   });
 });
 

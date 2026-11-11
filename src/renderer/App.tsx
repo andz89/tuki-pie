@@ -14,11 +14,24 @@ export function App() {
   const pin = useSettingsStore((state) => state.pin);
   const loadSettings = useSettingsStore((state) => state.load);
   const loadPie = usePieStore((state) => state.load);
+  const opened = usePieStore((state) => state.opened);
   const [phase, setPhase] = useState<PiePhase>();
 
-  useEffect(() => bridge.window.onPhase(setPhase), []);
+  // Reset from main's own word that the window opens, not from focus: a
+  // pinned donut coming back after a screenshot never gets focus.
+  useEffect(
+    () =>
+      bridge.window.onPhase((next) => {
+        setPhase(next);
+        if (next === 'opening') {
+          opened();
+        }
+      }),
+    [opened],
+  );
 
-  // The donut gets focus every time it opens, so this picks up any changes.
+  // Focus comes with each opening and each click on a pinned donut, so this
+  // picks up changes made elsewhere.
   useEffect(() => {
     const refresh = () => {
       void loadPie();

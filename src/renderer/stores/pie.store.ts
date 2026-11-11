@@ -181,9 +181,22 @@ interface PieState {
   openShortcutForm: (request: PanelFormRequest) => void;
   close: () => void;
   dismiss: () => void;
+  opened: () => void;
 }
 
 export const usePieStore = create<PieState>()((set, get) => ({
+  // Main says the window is opening. An unpinned donut starts fresh. A pinned
+  // one keeps what it shows, but main made its window a square again (at the
+  // cursor), so a list still open asks for its room again.
+  opened: () => {
+    if (useSettingsStore.getState().pin !== 'pinned') {
+      reset();
+      return;
+    }
+    usePieStore.setState({ listSide: null });
+    syncList();
+  },
+
   shortcuts: [],
   appIcons: {},
   snippets: [],
@@ -197,16 +210,11 @@ export const usePieStore = create<PieState>()((set, get) => ({
   error: null,
   notice: null,
 
+  // Runs on every focus. Clicking a pinned donut gives it focus, so this
+  // leaves the highlight alone: clearing it would close the Settings circles
+  // under that same click. Resetting is opened()'s job.
   load: async () => {
-    // Clicking a pinned donut gives it focus, which reloads this. Clearing the
-    // highlight then would close the Settings circles under that same click.
-    // A pinned donut keeps its lock too.
-    if (useSettingsStore.getState().pin === 'pinned') {
-      set({ error: null });
-    } else {
-      reset();
-      set({ error: null });
-    }
+    set({ error: null });
     void get().loadZipCount();
     await get().loadShortcuts();
     await get().loadSnippets();
