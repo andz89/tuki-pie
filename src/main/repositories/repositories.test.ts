@@ -6,6 +6,7 @@ import { AllowedAppRepository } from './allowed-app.repository';
 import { SettingsRepository } from './settings.repository';
 import { ShortcutRepository } from './shortcut.repository';
 import { SliceRepository } from './slice.repository';
+import { SnippetRepository } from './snippet.repository';
 
 function shortcut(id: string, overrides: Partial<Shortcut> = {}): Shortcut {
   return {
@@ -202,5 +203,50 @@ describe('AllowedAppRepository', () => {
     allowedApps.add('C:\\a.exe');
     allowedApps.remove('C:\\a.exe');
     expect(allowedApps.findAll()).toEqual([]);
+  });
+});
+
+describe('removing and renumbering', () => {
+  // Fails every renumber, as a crash between the two writes would.
+  function breakRenumbering(table: string) {
+    db.exec(
+      `CREATE TRIGGER no_renumber BEFORE UPDATE OF position ON ${table} BEGIN SELECT RAISE(ABORT, 'renumber failed'); END;`,
+    );
+  }
+
+  it('renumbers the slices left', () => {
+    const slices = new SliceRepository(db);
+    [0, 1, 2].forEach((position) => slices.insert(slice(position)));
+    slices.removeAndRenumber('id-0', ['id-1', 'id-2']);
+    expect(slices.findAll().map(({ id, position }) => [id, position])).toEqual([
+      ['id-1', 0],
+      ['id-2', 1],
+    ]);
+  });
+
+  it('keeps a slice when its renumbering fails', () => {
+    const slices = new SliceRepository(db);
+    [0, 1].forEach((position) => slices.insert(slice(position)));
+    breakRenumbering('slices');
+    expect(() => slices.removeAndRenumber('id-0', ['id-1'])).toThrow();
+    expect(slices.findAll()).toHaveLength(2);
+  });
+
+  it('keeps a shortcut when its renumbering fails', () => {
+    const shortcuts = new ShortcutRepository(db);
+    shortcuts.insert(shortcut('a'));
+    shortcuts.insert(shortcut('b', { position: 1 }));
+    breakRenumbering('shortcuts');
+    expect(() => shortcuts.removeAndRenumber('a', ['b'])).toThrow();
+    expect(shortcuts.findAll()).toHaveLength(2);
+  });
+
+  it('keeps a snippet when its renumbering fails', () => {
+    const snippets = new SnippetRepository(db);
+    snippets.insert({ id: 'a', label: 'A', content: 'x', position: 0 });
+    snippets.insert({ id: 'b', label: 'B', content: 'y', position: 1 });
+    breakRenumbering('snippets');
+    expect(() => snippets.removeAndRenumber('a', ['b'])).toThrow();
+    expect(snippets.findAll()).toHaveLength(2);
   });
 });

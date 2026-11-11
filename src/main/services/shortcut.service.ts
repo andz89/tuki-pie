@@ -102,8 +102,12 @@ export class ShortcutService {
       throw new UserError(SHORTCUT_GONE);
     }
 
-    this.shortcuts.remove(id);
-    this.shortcuts.setOrder(this.rowIds(shortcut.parentId, shortcut.type));
+    this.shortcuts.removeAndRenumber(
+      id,
+      this.rowIds(shortcut.parentId, shortcut.type).filter(
+        (other) => other !== id,
+      ),
+    );
     return this.list();
   }
 

@@ -47,6 +47,14 @@ export class SliceRepository {
     this.db.prepare('DELETE FROM slices WHERE id = ?').run(id);
   }
 
+  // One transaction, so a crash can't leave a gap in the positions.
+  removeAndRenumber(id: string, remainingIds: string[]): void {
+    this.db.transaction(() => {
+      this.remove(id);
+      this.setOrder(remainingIds);
+    })();
+  }
+
   setOrder(ids: string[]): void {
     const setPosition = this.db.prepare(
       'UPDATE slices SET position = ? WHERE id = ?',

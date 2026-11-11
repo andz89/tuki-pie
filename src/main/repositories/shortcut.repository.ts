@@ -56,6 +56,14 @@ export class ShortcutRepository {
     this.db.prepare('DELETE FROM shortcuts WHERE id = ?').run(id);
   }
 
+  // One transaction, so a crash can't leave a gap in the positions.
+  removeAndRenumber(id: string, remainingIds: string[]): void {
+    this.db.transaction(() => {
+      this.remove(id);
+      this.setOrder(remainingIds);
+    })();
+  }
+
   // Changes the row and both orders together, so nothing is left half moved.
   move(
     id: string,

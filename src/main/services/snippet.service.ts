@@ -33,8 +33,12 @@ export class SnippetService {
 
   remove(id: string): Snippet[] {
     this.existing(id);
-    this.snippets.remove(id);
-    this.snippets.setOrder(this.list().map((snippet) => snippet.id));
+    this.snippets.removeAndRenumber(
+      id,
+      this.list()
+        .map((snippet) => snippet.id)
+        .filter((other) => other !== id),
+    );
     return this.list();
   }
 

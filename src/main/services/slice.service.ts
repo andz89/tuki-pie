@@ -89,8 +89,12 @@ export class SliceService {
       throw new UserError(`The donut needs at least ${MIN_SLICES} slices.`);
     }
 
-    this.slices.remove(id);
-    this.slices.setOrder(this.list().map((slice) => slice.id));
+    this.slices.removeAndRenumber(
+      id,
+      this.list()
+        .map((slice) => slice.id)
+        .filter((other) => other !== id),
+    );
     return this.list();
   }
 

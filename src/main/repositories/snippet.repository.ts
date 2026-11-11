@@ -45,6 +45,14 @@ export class SnippetRepository {
     this.db.prepare('DELETE FROM snippets WHERE id = ?').run(id);
   }
 
+  // One transaction, so a crash can't leave a gap in the positions.
+  removeAndRenumber(id: string, remainingIds: string[]): void {
+    this.db.transaction(() => {
+      this.remove(id);
+      this.setOrder(remainingIds);
+    })();
+  }
+
   setOrder(ids: string[]): void {
     const setPosition = this.db.prepare(
       'UPDATE snippets SET position = ? WHERE id = ?',
