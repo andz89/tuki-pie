@@ -331,6 +331,25 @@ function addId(ids: Set<string>, match: RegExpMatchArray): void {
   }
 }
 
+// The most inline script text searched per page. collect-page.js sends no
+// more than this (only the text around tracker words); an older extension
+// that sends whole scripts is cut here, so a page can't stall the app.
+export const MAX_TRACKER_TEXT = 100000;
+
+function capText(texts: string[]): string[] {
+  const kept: string[] = [];
+  let total = 0;
+  for (const text of texts) {
+    if (total >= MAX_TRACKER_TEXT) {
+      break;
+    }
+    const piece = text.slice(0, MAX_TRACKER_TEXT - total);
+    kept.push(piece);
+    total += piece.length;
+  }
+  return kept;
+}
+
 // A tracker script loaded more than once usually double-counts events.
 export function detectTrackers({
   srcs,
@@ -357,7 +376,7 @@ export function detectTrackers({
         break;
       }
     }
-    for (const text of inlineScripts) {
+    for (const text of capText(inlineScripts)) {
       for (const pattern of tracker.inline) {
         for (const match of text.matchAll(pattern)) {
           hit = true;

@@ -2,7 +2,13 @@
 import { describe, expect, it } from 'vitest';
 import type { PageData as PageDataType } from '../../shared/types';
 import { PageData } from '../../shared/schemas/page-info.schema';
+import { TRACKERS, detectTrackers } from '../../shared/page-audit';
 import COLLECT_PAGE from './collect-page.js?raw';
+
+// The collector's own word list, read from its source, so the two can't drift.
+const TRACKER_WORD_SOURCE = new RegExp(
+  /const TRACKER_WORDS =\s*\/(.+)\/g;/.exec(COLLECT_PAGE)?.[1] ?? 'no list',
+);
 
 function setPage(html: string): void {
   document.documentElement.innerHTML = html;
@@ -49,6 +55,70 @@ describe('collect-page', () => {
   it('produces data the schema accepts for a huge page', () => {
     const huge = `<script>${'x'.repeat(300000)}</script><h1>${'y'.repeat(5000)}</h1><title>${'z'.repeat(5000)}</title>`;
     expect(PageData.safeParse(read(huge)).success).toBe(true);
+  });
+
+  describe('script text for tracker detection', () => {
+    const filler = (length: number) => 'var x = 1;'.repeat(length / 10);
+    const inlineLength = (data: PageDataType) =>
+      data.trackingSources.inlineScripts.join('').length;
+
+    it('sends nothing from scripts without a tracker word', () => {
+      const data = read(`<script>${filler(300000)}</script>`);
+      expect(data.trackingSources.inlineScripts).toEqual([]);
+    });
+
+    it('sends only the text around tracker words, which still finds every ID', () => {
+      const scripts = [
+        "fbq('init', '1234567890');",
+        "gtag('config', 'G-ABC123');",
+        "(window,document,'script','dataLayer','GTM-XYZ9');",
+        "ttq.load('C4ABCDEF');",
+        '_linkedin_partner_id = "424242";',
+        "pintrk('load', '2612345678901');",
+        `var o = { ti: "5555555" }; ${filler(1500)} new UET(o);`,
+        "(window, document, 'clarity', 'script', 'abc123xyz');",
+        'h._hjSettings={hjid:3141592,hjsv:6};',
+        "vgo('setAccount', '650000000');",
+      ];
+      const html = scripts
+        .map(
+          (text) =>
+            `<script>${filler(100000)}${text}${filler(100000)}</script>`,
+        )
+        .join('');
+      const data = read(html);
+      expect(inlineLength(data)).toBeLessThan(100001);
+      const ids = detectTrackers(data.trackingSources).flatMap((t) => t.ids);
+      expect(ids.sort()).toEqual(
+        [
+          '1234567890',
+          'G-ABC123',
+          'GTM-XYZ9',
+          'C4ABCDEF',
+          '424242',
+          '2612345678901',
+          '5555555',
+          'abc123xyz',
+          '3141592',
+          '650000000',
+        ].sort(),
+      );
+    });
+
+    it('caps the text a page built to slow the app down can send', () => {
+      const data = read(
+        `<script>${'new UET({ '.repeat(20000)}</script><script>${'gtag('.repeat(60000)}</script>`,
+      );
+      expect(inlineLength(data)).toBeLessThan(100001);
+    });
+
+    it('has a tracker word in every inline pattern', () => {
+      for (const tracker of TRACKERS) {
+        for (const pattern of tracker.inline) {
+          expect(pattern.source, tracker.name).toMatch(TRACKER_WORD_SOURCE);
+        }
+      }
+    });
   });
 
   it('collapses heading whitespace and cuts long headings', () => {

@@ -8,6 +8,7 @@ import {
   detectTrackers,
   findMixedContent,
   limitList,
+  MAX_TRACKER_TEXT,
 } from './page-audit';
 import type { PageIssue } from './page-audit';
 
@@ -191,6 +192,11 @@ describe('detectTrackers', () => {
     const startedAt = performance.now();
     detectTrackers({ srcs: [], inlineScripts });
     expect(performance.now() - startedAt).toBeLessThan(1000);
+  });
+
+  it('searches no more than the capped amount of script text', () => {
+    const late = `${'x'.repeat(MAX_TRACKER_TEXT)}fbq('init', '999')`;
+    expect(detectTrackers({ srcs: [], inlineScripts: [late] })).toEqual([]);
   });
 
   it('finds nothing on a plain page', () => {

@@ -5,9 +5,43 @@
   const MAX_URL = 2048;
   const MAX_TEXT = 2000;
   const MAX_LIST = 5000;
-  const MAX_SCRIPT = 200000;
-  const MAX_SCRIPTS = 500;
   const MAX_HEADING = 120;
+
+  // Tracker detection only needs the script text around these words: every
+  // inline pattern in shared/page-audit.ts contains one (a test checks).
+  // Sending whole scripts meant up to 100 MB per read, and the app froze on
+  // pages built to be slow to search.
+  const TRACKER_WORDS =
+    /fbq|GTM-|gtag|ttq|_linkedin_partner_id|pintrk|UET|clarity|hjid|vgo/g;
+  // The longest pattern spans 2000 characters on either side of its word.
+  const BEFORE_WORD = 2100;
+  const AFTER_WORD = 4200;
+  const MAX_TRACKER_TEXT = 100000;
+
+  // Pieces of inline script that can hold a tracker ID. A word close after
+  // the last piece's word is already inside that piece.
+  const trackerText = (scripts) => {
+    const pieces = [];
+    let total = 0;
+    for (const script of scripts) {
+      let lastWord = -Infinity;
+      for (const { index } of script.matchAll(TRACKER_WORDS)) {
+        if (index < lastWord + BEFORE_WORD) {
+          continue;
+        }
+        lastWord = index;
+        const piece = script
+          .slice(Math.max(0, index - BEFORE_WORD), index + AFTER_WORD)
+          .slice(0, MAX_TRACKER_TEXT - total);
+        pieces.push(piece);
+        total += piece.length;
+        if (total >= MAX_TRACKER_TEXT) {
+          return pieces;
+        }
+      }
+    }
+    return pieces;
+  };
 
   const all = (selector) => [...document.querySelectorAll(selector)];
   const cut = (value) => value.slice(0, MAX_TEXT);
@@ -158,9 +192,9 @@
         ...all('script[src], img[src], iframe[src]').map((tag) => tag.src),
         ...noscriptSrcs,
       ]),
-      inlineScripts: all('script:not([src])')
-        .slice(0, MAX_SCRIPTS)
-        .map((tag) => tag.textContent.slice(0, MAX_SCRIPT)),
+      inlineScripts: trackerText(
+        all('script:not([src])').map((tag) => tag.textContent),
+      ),
     },
     linkHrefs: usableUrls(all('a[href]').map((link) => link.href)),
     links,
