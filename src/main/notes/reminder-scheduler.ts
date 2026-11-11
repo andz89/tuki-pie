@@ -31,18 +31,38 @@ export class ReminderScheduler {
   ) {}
 
   // Also on start, so reminders missed while the app was closed show now.
+  // A failure here must not stop every later reminder. After any failure
+  // the timer is set again, within the hour at the latest.
   refresh(): void {
     this.stop();
-    this.show(this.source.due());
+    let failed = false;
+    try {
+      this.show(this.source.due());
+    } catch (error) {
+      failed = true;
+      console.warn('Reminders could not be shown:', error);
+    }
+    let wait: number | null = MAX_WAIT_MS;
+    try {
+      wait = this.waitForNext();
+    } catch (error) {
+      failed = true;
+      console.warn('The next reminder could not be read:', error);
+    }
+    if (wait === null && failed) {
+      wait = MAX_WAIT_MS;
+    }
+    if (wait !== null) {
+      this.timer = this.timers.set(() => this.refresh(), wait);
+    }
+  }
+
+  private waitForNext(): number | null {
     const next = this.source.nextDueTime();
     if (next === null) {
-      return;
+      return null;
     }
-    const wait = Math.min(
-      Math.max(next.getTime() - this.now(), 0),
-      MAX_WAIT_MS,
-    );
-    this.timer = this.timers.set(() => this.refresh(), wait);
+    return Math.min(Math.max(next.getTime() - this.now(), 0), MAX_WAIT_MS);
   }
 
   stop(): void {

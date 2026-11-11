@@ -55,6 +55,34 @@ describe('ReminderScheduler', () => {
     expect(show).toHaveBeenCalledOnce();
   });
 
+  it('keeps ringing after the window fails to show once', () => {
+    next = new Date(START.getTime() + 1000);
+    show.mockImplementationOnce(() => {
+      throw new Error('window gone');
+    });
+    expect(() => scheduler.refresh()).not.toThrow();
+
+    due = [card('a')];
+    next = null;
+    vi.advanceTimersByTime(1000);
+    expect(show).toHaveBeenLastCalledWith([card('a')]);
+  });
+
+  it('looks again within an hour when reading the reminders fails', () => {
+    const failing = new ReminderScheduler(
+      {
+        due: () => {
+          throw new Error('database is locked');
+        },
+        nextDueTime: () => next,
+      },
+      show,
+    );
+    expect(() => failing.refresh()).not.toThrow();
+    expect(vi.getTimerCount()).toBe(1);
+    failing.stop();
+  });
+
   it('keeps one timer when refreshed again', () => {
     next = new Date(START.getTime() + 1000);
     scheduler.refresh();
