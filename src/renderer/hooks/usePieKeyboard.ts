@@ -61,9 +61,29 @@ export function handlePieKey(key: string): boolean {
   }
 }
 
+const TEXT_FIELDS = 'input, textarea, select, [contenteditable]';
+// Focusable controls that do their own Enter and arrows.
+const OWN_KEYS = 'button, a[href], .pie-list';
+
+// Whether a key pressed with this element focused is the donut's. A text field
+// keeps every key. A list card and its buttons keep Enter and arrows, so Enter
+// opens the focused shortcut, not the highlighted slice, but Esc still closes.
+export function isPieKeyFrom(key: string, target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return true;
+  }
+  if (target.closest(TEXT_FIELDS)) {
+    return false;
+  }
+  return key === 'Escape' || !target.closest(OWN_KEYS);
+}
+
 export function usePieKeyboard(): void {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!isPieKeyFrom(event.key, event.target)) {
+        return;
+      }
       if (handlePieKey(event.key)) {
         event.preventDefault();
       }

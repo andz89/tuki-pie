@@ -11,7 +11,12 @@ export function ZipNameBox() {
   const cancelZip = usePieStore((state) => state.cancelZip);
   const [name, setName] = useState('');
 
+  // Stopped here, so the donut's own Esc and Enter never see them: Esc would
+  // otherwise close the whole donut once the box is gone.
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' || event.key === 'Escape') {
+      event.stopPropagation();
+    }
     if (event.key === 'Enter') {
       event.preventDefault();
       void zipImages(name);
