@@ -8,9 +8,14 @@ import {
   showPieWindowAtCursor,
 } from './pie-window';
 
+type Handler = (event?: { preventDefault: () => void }) => void;
+
 const fake = vi.hoisted(() => ({
-  handlers: new Map<string, () => void>(),
-  loadHandlers: new Map<string, () => void>(),
+  handlers: new Map<string, Handler>(),
+  loadHandlers: new Map<string, Handler>(),
+  created: 0,
+  quitting: false,
+  reload: vi.fn(),
   focused: true,
   visible: true,
   hide: vi.fn(),
@@ -19,9 +24,13 @@ const fake = vi.hoisted(() => ({
 
 vi.mock('electron', () => ({
   BrowserWindow: class {
+    constructor() {
+      fake.created += 1;
+    }
     webContents = {
       send: fake.send,
-      on: (name: string, handler: () => void) =>
+      reload: fake.reload,
+      on: (name: string, handler: Handler) =>
         fake.loadHandlers.set(name, handler),
     };
     loadURL = () => undefined;
@@ -36,7 +45,7 @@ vi.mock('electron', () => ({
     isVisible = () => fake.visible;
     isFocused = () => fake.focused;
     setBounds = () => undefined;
-    on(name: string, handler: () => void) {
+    on(name: string, handler: Handler) {
       fake.handlers.set(name, handler);
     }
   },
@@ -47,6 +56,8 @@ vi.mock('electron', () => ({
     }),
   },
 }));
+
+vi.mock('./quitting', () => ({ isQuitting: () => fake.quitting }));
 
 function clickAway() {
   fake.handlers.get('blur')?.();
@@ -66,6 +77,9 @@ beforeEach(() => {
   letAnimationFinish();
   fake.focused = true;
   fake.visible = true;
+  fake.quitting = false;
+  fake.created = 0;
+  fake.reload.mockClear();
   fake.hide.mockClear();
   fake.send.mockClear();
 });
@@ -191,5 +205,38 @@ describe('the opening animation', () => {
       'window:phase',
       'closing',
     );
+  });
+});
+
+describe('closing the window itself', () => {
+  function closeEvent() {
+    return { preventDefault: vi.fn() };
+  }
+
+  it('only hides the donut on Alt+F4, so the app keeps running', () => {
+    const event = closeEvent();
+    fake.handlers.get('close')?.(event);
+    letAnimationFinish();
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(fake.hide).toHaveBeenCalledOnce();
+  });
+
+  it('lets the window close while the app quits', () => {
+    fake.quitting = true;
+    const event = closeEvent();
+    fake.handlers.get('close')?.(event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('makes a new window for the next open once the old one is gone', () => {
+    fake.handlers.get('closed')?.();
+    expect(isPieWindowOpen()).toBe(false);
+    showPieWindowAtCursor();
+    expect(fake.created).toBe(1);
+  });
+
+  it('reloads the page when its renderer crashes', () => {
+    fake.loadHandlers.get('render-process-gone')?.();
+    expect(fake.reload).toHaveBeenCalledOnce();
   });
 });

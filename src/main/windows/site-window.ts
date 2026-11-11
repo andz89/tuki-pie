@@ -2,18 +2,14 @@ import { BrowserWindow, session } from 'electron';
 import type { Session, WebContents } from 'electron';
 import type { SiteViewer } from '../page-info/page-info-controller';
 import { isSiteUrl } from '../page-info/site-address';
+import { isQuitting } from './quitting';
 
 const PARTITION = 'persist:page-info';
 
-let isQuitting = false;
 let isSessionLocked = false;
 
 export interface SiteEvents {
   hidden: () => void;
-}
-
-export function markQuitting(): void {
-  isQuitting = true;
 }
 
 export function isSiteSession(candidate: Session): boolean {
@@ -106,7 +102,7 @@ export function createSiteViewer(
 
     // Its X only hides it. Closing Page Info is what closes the site.
     window.on('close', (event) => {
-      if (!isQuitting) {
+      if (!isQuitting()) {
         event.preventDefault();
         hideWindow(window);
         events.hidden();
@@ -116,7 +112,7 @@ export function createSiteViewer(
     // Only a page calling window.close() gets here while Page Info is open.
     window.on('closed', () => {
       site = null;
-      if (!isBeingDestroyed && !isQuitting) {
+      if (!isBeingDestroyed && !isQuitting()) {
         events.hidden();
       }
     });

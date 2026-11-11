@@ -6,6 +6,7 @@ import type { Pin, PieSize } from '../../shared/schemas/settings.schema';
 import { LIST_EXTRA_WIDTH } from '../../shared/types';
 import type { ListSide } from '../../shared/types';
 import { WINDOW_SIZE, pieWindowBounds } from './pie-position';
+import { isQuitting } from './quitting';
 
 let pieWindow: BrowserWindow | null = null;
 let scale = 1;
@@ -77,8 +78,36 @@ export function createPieWindow(): void {
     }
   });
 
+  // A crashed page would leave an empty, unclickable window on the next open.
+  window.webContents.on('render-process-gone', () => {
+    window.webContents.reload();
+  });
+
   // Clicking anywhere outside the window closes the donut, unless it's pinned.
   window.on('blur', dismissPieWindow);
+
+  // Alt+F4 only hides the donut. Closing it would quit the app (no other
+  // window open) or leave a destroyed window behind every hotkey.
+  window.on('close', (event) => {
+    if (!isQuitting()) {
+      event.preventDefault();
+      hidePieWindow();
+    }
+  });
+
+  // Gone anyway (closed while quitting, or by the system): the next open
+  // makes a new one.
+  window.on('closed', () => {
+    if (pieWindow !== window) {
+      return;
+    }
+    pieWindow = null;
+    listSide = null;
+    if (closing) {
+      clearTimeout(closing);
+      closing = null;
+    }
+  });
 
   pieWindow = window;
 }
@@ -88,6 +117,9 @@ export function isPieWindowOpen(): boolean {
 }
 
 export function showPieWindowAtCursor(): void {
+  if (!pieWindow) {
+    createPieWindow();
+  }
   if (!pieWindow) {
     return;
   }

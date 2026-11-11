@@ -70,11 +70,8 @@ import { ZipSelection, defaultZipDeps } from './zip/zip-selection';
 import { sendNotesChanged } from './windows/notes-window';
 import { setPageInfoOnTop } from './windows/page-info-window';
 import { showReminders } from './windows/reminder-window';
-import {
-  applySiteRules,
-  isSiteSession,
-  markQuitting,
-} from './windows/site-window';
+import { markQuitting } from './windows/quitting';
+import { applySiteRules, isSiteSession } from './windows/site-window';
 
 function startApp(): void {
   // Applies to every window the app ever creates: no pop-ups, no leaving the app.
