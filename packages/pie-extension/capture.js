@@ -279,7 +279,6 @@ export function createCapture({ chrome }) {
     const contentSize = async () => {
       const metrics = await send('Page.getLayoutMetrics');
       return {
-        metrics,
         width: Math.ceil(metrics.cssContentSize.width),
         height: Math.ceil(metrics.cssContentSize.height),
       };
@@ -323,16 +322,6 @@ export function createCapture({ chrome }) {
         await sleep(RESIZE_SETTLE_MS);
       }
       const scale = fitScale(height * ratio);
-      note({
-        step: 'debugger',
-        device: device?.width ?? null,
-        before: before.metrics,
-        after: after.metrics,
-        ratio,
-        width,
-        height,
-        scale,
-      });
       const { data } = await send('Page.captureScreenshot', {
         format: 'jpeg',
         quality: JPEG_QUALITY,
@@ -384,14 +373,6 @@ export function createCapture({ chrome }) {
             throw new NotDrawnError();
           }
         }
-        note({
-          step: 'frame',
-          i,
-          target,
-          measure,
-          length: shot.length,
-          sameAsLast: shot === previousShot,
-        });
         previousShot = shot;
         previousY = measure.y;
         const bitmap = await createImageBitmap(
@@ -445,21 +426,11 @@ export function createCapture({ chrome }) {
   const chromeSaid = (error) =>
     String(error?.message ?? error ?? '').slice(0, MAX_REASON_LENGTH) || null;
 
-  // TEMPORARY: what happened during the last capture, to find why some
-  // pages repeat. Remove once that is fixed.
-  let notes = [];
-  const note = (entry) => notes.push(entry);
-
   // `device`: a name from devices.js, or empty for the tab as it is.
   async function capture(tabId, { device = '', reload = false } = {}) {
-    notes = [];
-    const result = await captureOnce(tabId, device, reload === true).catch(
-      (error) => {
-        note({ step: 'threw', said: chromeSaid(error) });
-        return { error: 'failed' };
-      },
-    );
-    return { ...result, debug: notes };
+    return captureOnce(tabId, device, reload === true).catch(() => ({
+      error: 'failed',
+    }));
   }
 
   async function captureOnce(tabId, deviceName, reload) {
@@ -483,7 +454,6 @@ export function createCapture({ chrome }) {
       }
       reason = await holder(tabId);
       debuggerSaid = chromeSaid(error);
-      note({ step: 'debugger-failed', said: debuggerSaid, reason });
     }
     // Only the debugger can show a page as a device. Stitching would give
     // the desktop page under the device's name.
@@ -496,7 +466,6 @@ export function createCapture({ chrome }) {
       });
       return { ...shot, reason: debuggerSaid };
     } catch (error) {
-      note({ step: 'stitch-failed', said: chromeSaid(error) });
       if (error instanceof NotDrawnError) {
         return { error: 'not-drawn' };
       }

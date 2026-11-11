@@ -106,6 +106,14 @@ afterEach(() => {
 });
 
 describe('capturing through the debugger', () => {
+  it('sends only the picture and how it was taken', async () => {
+    const shot = await createCapture({ chrome }).capture(1);
+    expect(shot).toEqual({
+      dataUrl: 'data:image/jpeg;base64,JPEGDATA',
+      method: 'debugger',
+    });
+  });
+
   it('asks for one full-page JPEG and detaches', async () => {
     const shot = await createCapture({ chrome }).capture(1);
     expect(shot).toMatchObject({

@@ -1,6 +1,3 @@
-import { writeFile } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import type { PageSite } from '../page-info/page-info-controller';
 import type { ChromeBridge, SiteEventName } from './chrome-bridge';
 
@@ -26,28 +23,6 @@ type Bridge = Pick<ChromeBridge, 'request' | 'onEvent'>;
 // Scrolling and stitching a long page takes about 50 seconds.
 // A device with a reload loads the page twice.
 export const CAPTURE_MS = 90000;
-
-// TEMPORARY: the extension's notes on the last capture, without the picture,
-// to find why some pages repeat. Remove once that is fixed.
-export const CAPTURE_NOTES_FILE = path.join(
-  os.tmpdir(),
-  'pie-launcher-capture.json',
-);
-
-async function keepCaptureNotes(raw: unknown): Promise<void> {
-  if (typeof raw !== 'object' || raw === null) {
-    return;
-  }
-  const { dataUrl, ...rest } = raw as Record<string, unknown>;
-  const notes = {
-    at: new Date().toISOString(),
-    pictureLength: typeof dataUrl === 'string' ? dataUrl.length : null,
-    ...rest,
-  };
-  await writeFile(CAPTURE_NOTES_FILE, JSON.stringify(notes, null, 2)).catch(
-    () => undefined,
-  );
-}
 
 // Page Info's site, as a Chrome tab the extension opens or finds.
 export function createChromeSite(
@@ -80,11 +55,7 @@ export function createChromeSite(
     read: () => bridge.request('read'),
     goToTab: () => quietly('goToTab'),
     showLink: (index, href) => bridge.request('showLink', { index, href }),
-    capture: (size) =>
-      bridge.request('capture', { ...size }, CAPTURE_MS).then((raw) => {
-        void keepCaptureNotes(raw);
-        return raw;
-      }),
+    capture: (size) => bridge.request('capture', { ...size }, CAPTURE_MS),
     openTabs: (urls) => {
       bridge.request('openTabs', { urls }).catch(() => undefined);
     },
