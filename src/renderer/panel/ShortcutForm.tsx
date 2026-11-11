@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
+import { useRef, useState } from 'react';
 import {
   isWebLink,
   normalizeWebAddress,
@@ -7,6 +6,7 @@ import {
 import type { Shortcut } from '../../shared/types';
 import { cleanPastedPath, isLocalPath } from './clean-pasted-path';
 import { labelFromPath } from './label-from-path';
+import { oneAtATime } from './one-at-a-time';
 import { usePanelStore } from './panel.store';
 
 const MAX_LABEL_LENGTH = 24;
@@ -77,8 +77,7 @@ export function ShortcutForm({ target, onClose }: ShortcutFormProps) {
     }
   };
 
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
+  const save = async () => {
     const name = label.trim();
 
     let destination: string | null = null;
@@ -119,11 +118,19 @@ export function ShortcutForm({ target, onClose }: ShortcutFormProps) {
     }
   };
 
+  // A double click or a held Enter saves once, not twice.
+  const latestSave = useRef(save);
+  latestSave.current = save;
+  const [submit] = useState(() => oneAtATime(() => latestSave.current()));
+
   return (
     <form
       className="slice-form"
       aria-label={formTitle(target)}
-      onSubmit={(event) => void save(event)}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
     >
       <h3>{formTitle(target)}</h3>
 

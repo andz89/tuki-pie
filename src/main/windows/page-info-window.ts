@@ -101,7 +101,16 @@ function followActiveTab(): void {
   followTimer = setTimeout(() => void checkActiveTab(), FOLLOW_TAB_MS);
 }
 
+// Runs from a timer, so nothing would catch a failure here.
 async function checkActiveTab(): Promise<void> {
+  try {
+    await checkActiveTabNow();
+  } catch (error) {
+    console.warn('Could not check the active Chrome tab:', error);
+  }
+}
+
+async function checkActiveTabNow(): Promise<void> {
   const active = controller;
   if (!active?.state().chromeConnected) {
     return;

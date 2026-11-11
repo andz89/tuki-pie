@@ -98,12 +98,24 @@ export const usePanelStore = create<PanelState>()((set, get) => {
     settings: DEFAULT_SETTINGS,
     error: null,
 
+    // Runs on every focus, so a working read leaves the message on screen:
+    // clicking back into the window must not wipe why a save failed.
     load: async () => {
-      accept(await panelBridge.shortcuts.list(), setShortcuts);
-      accept(await panelBridge.snippets.list(), setSnippets);
-      accept(await panelBridge.suggestions.list(), setSuggestions);
-      accept(await panelBridge.settings.get(), (settings) => set({ settings }));
-      accept(await panelBridge.allowedApps.list(), setAllowedApps);
+      const show = <Value>(
+        result: Result<Value>,
+        apply: (value: Value) => void,
+      ) => {
+        if (result.ok) {
+          apply(result.value);
+        } else {
+          set({ error: result.error });
+        }
+      };
+      show(await panelBridge.shortcuts.list(), setShortcuts);
+      show(await panelBridge.snippets.list(), setSnippets);
+      show(await panelBridge.suggestions.list(), setSuggestions);
+      show(await panelBridge.settings.get(), (settings) => set({ settings }));
+      show(await panelBridge.allowedApps.list(), setAllowedApps);
     },
 
     // In this order, so a request to edit a snippet can find that snippet.

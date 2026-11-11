@@ -7,7 +7,12 @@ import {
 } from 'react';
 import type { CSSProperties } from 'react';
 import { DEFAULT_SETTINGS } from '../../shared/schemas/settings.schema';
-import type { DueReminder, ReminderBridge, Settings } from '../../shared/types';
+import type {
+  DueReminder,
+  ReminderBridge,
+  Result,
+  Settings,
+} from '../../shared/types';
 
 declare global {
   interface Window {
@@ -58,9 +63,17 @@ export function ReminderCard() {
     return () => observer.disconnect();
   }, [shown.length]);
 
-  const act = (id: string, action: (id: string) => Promise<unknown>) => {
+  // Hidden at once; back again if main could not do it.
+  const act = async (id: string, action: (id: string) => Promise<Result>) => {
     setHandled((current) => new Set(current).add(id));
-    void action(id);
+    const result = await action(id).catch(() => null);
+    if (!result?.ok) {
+      setHandled((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   return (
@@ -78,21 +91,21 @@ export function ReminderCard() {
             <button
               type="button"
               className="button-primary"
-              onClick={() => act(id, bridge.open)}
+              onClick={() => void act(id, bridge.open)}
             >
               Open note
             </button>
             <button
               type="button"
               className="button"
-              onClick={() => act(id, bridge.snooze)}
+              onClick={() => void act(id, bridge.snooze)}
             >
               Snooze 10 min
             </button>
             <button
               type="button"
               className="button"
-              onClick={() => act(id, bridge.done)}
+              onClick={() => void act(id, bridge.done)}
             >
               Done
             </button>

@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
+import { useRef, useState } from 'react';
 import { MAX_SNIPPET_LENGTH } from '../../shared/schemas/snippet.schema';
 import type { SnippetFormTarget } from './form-request';
+import { oneAtATime } from './one-at-a-time';
 import { usePanelStore } from './panel.store';
 
 const MAX_LABEL_LENGTH = 24;
@@ -21,8 +21,7 @@ export function SnippetForm({ target, onClose }: SnippetFormProps) {
 
   const title = editing ? `Edit ${editing.label}` : 'New snippet';
 
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
+  const save = async () => {
     const name = label.trim();
     const saved = editing
       ? await updateSnippet({ id: editing.id, label: name, content })
@@ -32,11 +31,19 @@ export function SnippetForm({ target, onClose }: SnippetFormProps) {
     }
   };
 
+  // A double click or a held Enter saves once, not twice.
+  const latestSave = useRef(save);
+  latestSave.current = save;
+  const [submit] = useState(() => oneAtATime(() => latestSave.current()));
+
   return (
     <form
       className="slice-form"
       aria-label={title}
-      onSubmit={(event) => void save(event)}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
     >
       <h3>{title}</h3>
 

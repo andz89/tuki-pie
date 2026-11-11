@@ -60,6 +60,13 @@ export function SectionPicker() {
     }
   };
 
+  // Windows took the pointer away (a system dialog, a touch cancel). Without
+  // this, the next move would draw from the lost start.
+  const handleCancel = () => {
+    setStart(null);
+    setEnd(null);
+  };
+
   const handleUp = (event: PointerEvent<HTMLDivElement>) => {
     if (!start) {
       return;
@@ -79,6 +86,8 @@ export function SectionPicker() {
       onPointerDown={handleDown}
       onPointerMove={handleMove}
       onPointerUp={handleUp}
+      onPointerCancel={handleCancel}
+      onLostPointerCapture={handleCancel}
       onContextMenu={(event) => event.preventDefault()}
     >
       {area ? (

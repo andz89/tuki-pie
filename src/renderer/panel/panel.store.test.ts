@@ -366,6 +366,16 @@ describe('panel store', () => {
     expect(store().allowedApps).toEqual(['C:\\a.exe']);
   });
 
+  it('keeps the message on screen when the window is reloaded on focus', async () => {
+    vi.mocked(panelBridge.settings.get).mockResolvedValue({
+      ok: true,
+      value: DEFAULT_SETTINGS,
+    });
+    usePanelStore.setState({ error: 'Nothing found at that path.' });
+    await store().load();
+    expect(store().error).toBe('Nothing found at that path.');
+  });
+
   it('clears an old error after something works', async () => {
     usePanelStore.setState({ error: 'old' });
     vi.mocked(panelBridge.shortcuts.remove).mockResolvedValue({
