@@ -58,6 +58,40 @@ describe('ZipSelection', () => {
     expect(await selection.count()).toBe(0);
   });
 
+  it('asks Explorer once while a read of the same window is still running', async () => {
+    let answer: (files: string[]) => void = () => undefined;
+    const readSelection = vi.fn(
+      () => new Promise<string[]>((resolve) => (answer = resolve)),
+    );
+    const { selection } = makeSelection({ readSelection });
+    selection.noteFrontWindow();
+    selection.noteFrontWindow();
+    expect(readSelection).toHaveBeenCalledOnce();
+    answer([inFolder('a.png')]);
+    expect(await selection.count()).toBe(1);
+  });
+
+  it('asks again once the last read has finished', async () => {
+    const { selection, deps } = makeSelection();
+    selection.noteFrontWindow();
+    await selection.count();
+    selection.noteFrontWindow();
+    expect(deps.readSelection).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks again for another Explorer window', async () => {
+    const readSelection = vi.fn(() => new Promise<string[]>(() => undefined));
+    let front = explorer;
+    const { selection } = makeSelection({
+      readSelection,
+      frontExplorerWindow: () => front,
+    });
+    selection.noteFrontWindow();
+    front = { id: 43n, title: 'Other' };
+    selection.noteFrontWindow();
+    expect(readSelection).toHaveBeenCalledTimes(2);
+  });
+
   it('zips the images next to the first one under the typed name', async () => {
     const { selection, deps } = makeSelection();
     selection.noteFrontWindow();

@@ -34,18 +34,34 @@ export interface ZipDeps {
 // takes the focus as it opens, so this has to be read before it does.
 export class ZipSelection {
   private images: Promise<string[]> = Promise.resolve([]);
+  // The Explorer window being read now. Each read starts PowerShell, so
+  // opening the donut again over the same window reuses it.
+  private reading: bigint | null = null;
 
   constructor(private readonly deps: ZipDeps) {}
 
   // Called just before the donut shows.
   noteFrontWindow(): void {
     const window = this.deps.frontExplorerWindow();
-    this.images = window
-      ? this.deps
-          .readSelection(window)
-          .then((files) => files.filter(isImageFile))
-          .catch(() => [])
-      : Promise.resolve([]);
+    if (!window) {
+      this.reading = null;
+      this.images = Promise.resolve([]);
+      return;
+    }
+    if (this.reading === window.id) {
+      return;
+    }
+    this.reading = window.id;
+    const read: Promise<string[]> = this.deps
+      .readSelection(window)
+      .then((files) => files.filter(isImageFile))
+      .catch(() => [])
+      .finally(() => {
+        if (this.images === read) {
+          this.reading = null;
+        }
+      });
+    this.images = read;
   }
 
   async count(): Promise<number> {

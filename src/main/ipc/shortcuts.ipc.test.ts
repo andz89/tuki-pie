@@ -9,7 +9,7 @@ import { registerShortcutIpc } from './shortcuts.ipc';
 import { eventFor } from './fake-sender';
 
 vi.mock('electron', () => ({
-  app: { getFileIcon: vi.fn() },
+  app: { getFileIcon: vi.fn(), getPath: vi.fn(() => '/app-data') },
   nativeImage: { createFromPath: vi.fn() },
   shell: { readShortcutLink: vi.fn() },
   ipcMain: { handle: vi.fn() },

@@ -1,4 +1,5 @@
 import { app, nativeImage, shell } from 'electron';
+import path from 'node:path';
 import { z } from 'zod';
 import { IpcChannels } from '../../shared/ipc-channels';
 import {
@@ -11,6 +12,7 @@ import {
 import type { ShortcutService } from '../services/shortcut.service';
 import type { SliceService } from '../services/slice.service';
 import { readAppIcon } from '../shortcuts/app-icon';
+import { cachedIconReader } from '../shortcuts/icon-cache';
 import { shellIconOf } from '../shortcuts/shell-icon';
 import { takePanelFormRequest } from '../windows/panel-window';
 import { handle } from './handle';
@@ -24,6 +26,12 @@ export function registerShortcutIpc(
   shortcuts: ShortcutService,
   slices: SliceService,
 ): void {
+  // Store-app icons take a PowerShell each: one at a time, kept on disk.
+  const shellIcon = cachedIconReader(
+    shellIconOf,
+    path.join(app.getPath('userData'), 'icon-cache'),
+  );
+
   handle(IpcChannels.shortcutsList, z.tuple([]), () => shortcuts.list());
 
   // Takes an id, never an address: the address comes from the database.
@@ -45,7 +53,7 @@ export function registerShortcutIpc(
         const icon = await app.getFileIcon(path, { size: 'large' });
         return icon.isEmpty() ? null : icon.toDataURL();
       },
-      shellIconOf,
+      shellIconOf: shellIcon,
     });
   });
 
