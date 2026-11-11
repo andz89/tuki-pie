@@ -2,6 +2,8 @@ import { app, nativeImage, shell } from 'electron';
 import { z } from 'zod';
 import { IpcChannels } from '../../shared/ipc-channels';
 import {
+  MAX_APPS,
+  MAX_SHORTCUTS_PER_ROW,
   NewShortcut,
   Shortcut,
   ShortcutEdit,
@@ -14,6 +16,9 @@ import { takePanelFormRequest } from '../windows/panel-window';
 import { handle } from './handle';
 
 const Id = Shortcut.shape.id;
+// The longest row: apps fan out further than links and groups. The service
+// checks the exact row, this only bounds the message.
+const MAX_ROW = Math.max(MAX_APPS, MAX_SHORTCUTS_PER_ROW);
 
 export function registerShortcutIpc(
   shortcuts: ShortcutService,
@@ -69,13 +74,21 @@ export function registerShortcutIpc(
 
   handle(
     IpcChannels.panelShortcutsReorder,
-    z.tuple([Id.nullable(), Id.array().max(8)]),
+    z.tuple([Id.nullable(), Id.array().max(MAX_ROW)]),
     (parentId, ids) => shortcuts.reorder(parentId, ids),
   );
 
   handle(
     IpcChannels.panelShortcutMove,
-    z.tuple([Id, Id.nullable(), z.number().int().min(0).max(7)]),
+    z.tuple([
+      Id,
+      Id.nullable(),
+      z
+        .number()
+        .int()
+        .min(0)
+        .max(MAX_SHORTCUTS_PER_ROW - 1),
+    ]),
     (id, parentId, index) => shortcuts.move(id, parentId, index),
   );
 

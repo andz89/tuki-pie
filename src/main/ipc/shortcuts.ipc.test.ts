@@ -140,6 +140,20 @@ describe('shortcut messages', () => {
     expect(shortcuts.reorder).toHaveBeenCalledExactlyOnceWith('g', ['a', 'b']);
   });
 
+  it('passes a full apps row of 18 when reordering', async () => {
+    const ids = Array.from({ length: 18 }, (_, index) => `app${index}`);
+    await handlerFor(IpcChannels.panelShortcutsReorder)({}, null, ids);
+    expect(shortcuts.reorder).toHaveBeenCalledExactlyOnceWith(null, ids);
+  });
+
+  it('refuses a reorder longer than any row', async () => {
+    const ids = Array.from({ length: 19 }, (_, index) => `app${index}`);
+    await expect(
+      handlerFor(IpcChannels.panelShortcutsReorder)({}, null, ids),
+    ).rejects.toThrow();
+    expect(shortcuts.reorder).not.toHaveBeenCalled();
+  });
+
   it('passes the shortcut, row and place when moving to another row', async () => {
     await handlerFor(IpcChannels.panelShortcutMove)({}, 'a', 'g', 2);
     expect(shortcuts.move).toHaveBeenCalledExactlyOnceWith('a', 'g', 2);
