@@ -193,6 +193,28 @@ describe('adding a slice', () => {
       ).toThrow('That file is a program, so add it as an App.');
     },
   );
+
+  it.each(['page.html', 'script.py', 'macro.xlsm', 'link.website', 'run'])(
+    'refuses %s as a note, as only documents count',
+    (name) => {
+      const file = `C:\\Notes\\${name}`;
+      kinds[file] = 'file';
+      expect(() =>
+        service.add({ label: 'Odd', type: 'note', path: file }),
+      ).toThrow('Notes can be text, Word, OpenDocument or PDF files.');
+    },
+  );
+
+  it.each(['ideas.md', 'plan.DOCX', 'scan.pdf', 'letter.odt', 'old.rtf'])(
+    'takes %s as a note',
+    (name) => {
+      const file = `C:\\Notes\\${name}`;
+      kinds[file] = 'file';
+      expect(() =>
+        service.add({ label: 'Doc', type: 'note', path: file }),
+      ).not.toThrow();
+    },
+  );
 });
 
 describe('changing slices', () => {

@@ -22,6 +22,9 @@ const EXPECTED_KIND: Record<SliceType, PathKind> = {
 const PROGRAM_FILE =
   /\.(exe|bat|cmd|com|msi|ps1|lnk|scr|vbs|vbe|js|jse|wsf|wsh|hta|pif|cpl|jar|reg|url)$/i;
 
+// The document types a note slice may open, as offered by its file picker.
+const NOTE_FILE = /\.(txt|md|markdown|log|csv|rtf|doc|docx|odt|pdf)$/i;
+
 const APP_NOT_ALLOWED = 'App not allowed. Check Settings.';
 const SLICE_GONE = 'That slice no longer exists.';
 
@@ -150,9 +153,18 @@ export class SliceService {
     return this.kindOf(path) === EXPECTED_KIND[type];
   }
 
+  // Only known document types: a list of what to refuse always misses one.
   private assertNotProgramNote({ type, path }: NewSlice): void {
-    if (type === 'note' && PROGRAM_FILE.test(path)) {
+    if (type !== 'note') {
+      return;
+    }
+    if (PROGRAM_FILE.test(path)) {
       throw new UserError('That file is a program, so add it as an App.');
+    }
+    if (!NOTE_FILE.test(path)) {
+      throw new UserError(
+        'Notes can be text, Word, OpenDocument or PDF files.',
+      );
     }
   }
 }
