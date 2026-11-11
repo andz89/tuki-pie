@@ -4,6 +4,7 @@ import { PIE_SCALES } from '../shared/schemas/settings.schema';
 import type { PiePhase } from '../shared/types';
 import { bridge } from './api/bridge';
 import { PieMenu } from './components/PieMenu';
+import { useWindowFocused } from './hooks/useWindowFocused';
 import { usePieStore } from './stores/pie.store';
 import { useSettingsStore } from './stores/settings.store';
 
@@ -16,6 +17,7 @@ export function App() {
   const loadPie = usePieStore((state) => state.load);
   const opened = usePieStore((state) => state.opened);
   const [phase, setPhase] = useState<PiePhase>();
+  const focused = useWindowFocused();
 
   // Reset from main's own word that the window opens, not from focus: a
   // pinned donut coming back after a screenshot never gets focus.
@@ -49,6 +51,7 @@ export function App() {
       data-theme={theme}
       data-phase={phase}
       data-pin={pin}
+      data-focused={focused}
       style={
         {
           '--accent': accent,

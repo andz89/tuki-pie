@@ -340,9 +340,11 @@ body,
   opacity: 0.3;
 }
 
-/* Nothing keeps moving once it's out of sight, or while the donut is closed. */
+/* Nothing keeps moving once it's out of sight, or while the donut is closed.
+   A pinned donut left on screen while you work elsewhere rests too. */
 .pie-orbit[data-level='off'] *,
-.pie-root[data-phase='closing'] .pie-orbit * {
+.pie-root[data-phase='closing'] .pie-orbit *,
+.pie-root[data-pin='pinned'][data-focused='false'] .pie-orbit * {
   animation-play-state: paused;
 }
 
