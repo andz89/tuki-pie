@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { MAX_MESSAGE_BYTES } from '../../../packages/pie-extension/protocol.js';
+import {
+  MAX_MESSAGE_BYTES,
+  sameAddress,
+} from '../../../packages/pie-extension/protocol.js';
 import { LINK_SPOTS } from '../../shared/types';
 import type { CaptureSize, LinkSpot, PageInfoUpdate } from '../../shared/types';
 import { UserError } from '../services/user-error';
@@ -9,6 +12,9 @@ import { enteredAddress } from './site-address';
 const SETTLE_MS = 1500;
 // Chrome runs a tab you can't see more slowly, so late tags need longer.
 const LATE_READ_MS = 5000;
+// A single-page site can change its address several times in a row (a
+// redirect, then a tab, then a scroll position). Only the last one is read.
+const IN_PLACE_WAIT_MS = 500;
 const LOAD_LIMIT_MS = 30000;
 const READ_LIMIT_MS = 5000;
 // Chromium's code for a load replaced by a newer one, which isn't a failure.
@@ -94,6 +100,9 @@ export class PageInfoController {
   private loadTimer: ReturnType<typeof setTimeout> | undefined;
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
   private lateReadTimer: ReturnType<typeof setTimeout> | undefined;
+  private inPlaceTimer: ReturnType<typeof setTimeout> | undefined;
+  // The address before an in-place change, until a read shows where it went.
+  private addressBeforeInPlace: string | null = null;
   private checksStarted = 0;
   // Changes with every page, so a screenshot never outlives the page it shows.
   private pageCount = 0;
@@ -266,12 +275,15 @@ export class PageInfoController {
     if (this.isPageLoading) {
       return;
     }
-    this.forgetCapture();
-    this.apply({ reportId: this.update.reportId + 1 });
-    // The site updates its title and details just after changing the address.
     clearTimeout(this.settleTimer);
     clearTimeout(this.lateReadTimer);
-    this.readSoonAndLater();
+    clearTimeout(this.inPlaceTimer);
+    this.addressBeforeInPlace ??= this.update.address;
+    // The site updates its title and details just after changing the address.
+    this.inPlaceTimer = setTimeout(
+      () => this.readSoonAndLater(),
+      IN_PLACE_WAIT_MS,
+    );
   }
 
   // A load that stopped by itself and wasn't replaced by a newer one.
@@ -301,6 +313,7 @@ export class PageInfoController {
   private startPage(address: string | null): void {
     this.stopTimers();
     this.forgetCapture();
+    this.addressBeforeInPlace = null;
     this.latestRead += 1;
     this.isPageLoading = true;
     this.hasCommitted = false;
@@ -332,6 +345,7 @@ export class PageInfoController {
   private endPage(changes: Partial<PageInfoUpdate>): void {
     this.stopTimers();
     this.forgetCapture();
+    this.addressBeforeInPlace = null;
     this.isPageLoading = false;
     this.hasCommitted = false;
     this.ignoresLoadFinish = true;
@@ -361,6 +375,19 @@ export class PageInfoController {
     clearTimeout(this.loadTimer);
     clearTimeout(this.settleTimer);
     clearTimeout(this.lateReadTimer);
+    clearTimeout(this.inPlaceTimer);
+  }
+
+  // After an in-place change: a new path or query is a new page, so the
+  // screenshot and your ticks go. A new # part only moved within the page.
+  private settleInPlaceChange(url: string): number {
+    const before = this.addressBeforeInPlace;
+    this.addressBeforeInPlace = null;
+    if (before === null || sameAddress(before, url)) {
+      return this.update.reportId;
+    }
+    this.forgetCapture();
+    return this.update.reportId + 1;
   }
 
   private async read(warning: string | null = null): Promise<void> {
@@ -381,6 +408,7 @@ export class PageInfoController {
         address: report.url,
         report,
         message: warning,
+        reportId: this.settleInPlaceChange(report.url),
       });
     } else if (warning !== null || this.update.report === null) {
       this.apply({ status: 'failed', message: warning ?? COULD_NOT_READ });

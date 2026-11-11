@@ -133,7 +133,9 @@ describe('reading the page', () => {
     controller.sitePageCommitted();
     controller.siteLoaded();
     await flush();
+    site.read.mockResolvedValue(page('https://example.com/other'));
     controller.sitePageChangedInPlace();
+    await vi.advanceTimersByTimeAsync(500);
     expect(controller.state().reportId).not.toBe(second);
   });
 
@@ -185,8 +187,51 @@ describe('reading the page', () => {
     await flush();
     site.read.mockClear();
     controller.sitePageChangedInPlace();
-    await flush();
+    await vi.advanceTimersByTimeAsync(500);
     expect(site.read).toHaveBeenCalled();
+  });
+
+  it('reads once after a burst of address changes', async () => {
+    controller.check('a.com');
+    controller.sitePageCommitted();
+    controller.siteLoaded();
+    await vi.advanceTimersByTimeAsync(10000);
+    site.read.mockClear();
+    for (let step = 0; step < 5; step++) {
+      controller.sitePageChangedInPlace();
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    expect(site.read).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(site.read).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the screenshot and the ticks when only the # part changed', async () => {
+    site.read.mockResolvedValue(page('https://example.com/'));
+    controller.check('example.com');
+    controller.sitePageCommitted();
+    controller.siteLoaded();
+    await flush();
+    await controller.capture({ device: '', reload: false });
+    const id = controller.state().reportId;
+    site.read.mockResolvedValue(page('https://example.com/#reviews'));
+    controller.sitePageChangedInPlace();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(controller.capturedImage()).not.toBeNull();
+    expect(controller.state().reportId).toBe(id);
+  });
+
+  it('forgets the screenshot when the path changed', async () => {
+    site.read.mockResolvedValue(page('https://example.com/'));
+    controller.check('example.com');
+    controller.sitePageCommitted();
+    controller.siteLoaded();
+    await flush();
+    await controller.capture({ device: '', reload: false });
+    site.read.mockResolvedValue(page('https://example.com/pricing'));
+    controller.sitePageChangedInPlace();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(controller.capturedImage()).toBeNull();
   });
 
   it('goes back to checking when the visible site reaches a new page', async () => {
@@ -376,7 +421,7 @@ describe('when a page has problems', () => {
     await vi.advanceTimersByTimeAsync(1500);
     site.read.mockClear();
     controller.sitePageChangedInPlace();
-    await flush();
+    await vi.advanceTimersByTimeAsync(500);
     expect(site.read).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1500);
     expect(site.read).toHaveBeenCalledTimes(2);
@@ -533,7 +578,7 @@ describe('checking in Chrome', () => {
     await vi.advanceTimersByTimeAsync(4000);
     site.read.mockClear();
     controller.sitePageChangedInPlace();
-    await flush();
+    await vi.advanceTimersByTimeAsync(500);
     await vi.advanceTimersByTimeAsync(1000);
     // The old late read, due at 5 seconds, was replaced.
     expect(site.read).toHaveBeenCalledTimes(1);
