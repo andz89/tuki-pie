@@ -55,8 +55,12 @@ export function createTabs({
     return saved;
   }
 
+  // Merged onto what is saved after the wait, not before it: two saves that
+  // overlapped would otherwise both start from the same old copy, and the
+  // second would undo the first.
   async function save(changes) {
-    saved = { ...(await ids()), ...changes };
+    await ids();
+    saved = { ...saved, ...changes };
     await chrome.storage.session.set({ pieTabs: saved });
   }
 

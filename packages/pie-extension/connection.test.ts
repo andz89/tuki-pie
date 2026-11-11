@@ -108,6 +108,19 @@ describe('after the connection closes', () => {
     expect(sockets).toHaveLength(1);
   });
 
+  it('tries a refused code again every 5 minutes, from the alarm', async () => {
+    const linked = connection();
+    await linked.connect();
+    sockets[0].onclose?.({ code: 4002 });
+    await flush();
+    await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+    await linked.connect();
+    expect(sockets).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(60 * 1000);
+    await linked.connect();
+    expect(sockets).toHaveLength(2);
+  });
+
   it('tries again after being replaced when asked to', async () => {
     const linked = connection();
     await linked.connect();

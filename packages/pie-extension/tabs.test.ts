@@ -335,6 +335,22 @@ describe('links', () => {
   });
 });
 
+describe('saving which tabs matter', () => {
+  it('keeps both of two changes saved at the same moment', async () => {
+    // Own tab 100 is checked, and tab 7 is open too.
+    await tabs.open({ url: 'https://a.com' });
+    openTabs.push({ id: 7, url: 'https://b.com/', status: 'complete' });
+    // A fresh worker, as after the service worker slept.
+    tabs = createTabs({ chrome, sendEvent });
+    await Promise.all([tabs.noteCommitted(), tabs.tabRemoved(100)]);
+    expect(session.pieTabs).toMatchObject({
+      own: null,
+      checked: null,
+      committed: true,
+    });
+  });
+});
+
 describe('closing tabs', () => {
   it('reports the checked tab closing', async () => {
     openTabs = [{ id: 7, url: 'https://a.com/', status: 'complete' }];

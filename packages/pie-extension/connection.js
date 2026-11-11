@@ -19,6 +19,11 @@ import {
 const RETRY_DELAYS_MS = [1000, 3000, 10000];
 // These wait for a new code, Connect, or Chrome starting, never a timer.
 const WAITING = new Set(['bad-code', 'replaced']);
+// Except a refused code, tried again this rarely from the 30-second alarm:
+// the app may have been set back to this code, or its database restored.
+// "replaced" keeps waiting: retrying would take the link back and forth
+// with the other Chrome.
+const BAD_CODE_RETRY_MS = 5 * 60 * 1000;
 const OPEN = 1;
 const encoder = new TextEncoder();
 // Actions that take over the tab (the debugger, scrolling, focus), so two
@@ -198,6 +203,9 @@ export function createConnection({ openSocket, storage, onRequest }) {
       if (status === 'not-connected') {
         scheduleRetry();
       }
+      if (status === 'bad-code') {
+        void storage.set({ pieRetryAt: Date.now() + BAD_CODE_RETRY_MS });
+      }
     };
   }
 
@@ -207,11 +215,16 @@ export function createConnection({ openSocket, storage, onRequest }) {
     }
     connecting = true;
     try {
-      const { pieCode, pieStatus } = await storage.get([
+      const { pieCode, pieStatus, pieRetryAt } = await storage.get([
         'pieCode',
         'pieStatus',
+        'pieRetryAt',
       ]);
-      if (!force && WAITING.has(pieStatus)) {
+      const canRetry =
+        pieStatus === 'bad-code' &&
+        Number.isFinite(pieRetryAt) &&
+        Date.now() >= pieRetryAt;
+      if (!force && WAITING.has(pieStatus) && !canRetry) {
         return;
       }
       if (typeof pieCode !== 'string' || pieCode === '') {
