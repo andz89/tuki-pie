@@ -10,7 +10,8 @@ import type {
   UtmProblem,
 } from '../page-audit';
 
-// collect-page.js trims a page to these same limits, because it can't import.
+// packages/pie-extension/collect-page.js trims a page to these same limits,
+// because it can't import.
 export const MAX_PAGE_URL = 2048;
 export const MAX_PAGE_TEXT = 2000;
 export const MAX_PAGE_LIST = 5000;

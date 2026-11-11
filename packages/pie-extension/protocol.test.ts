@@ -13,20 +13,6 @@ import {
 
 const root = path.resolve(__dirname, '../..');
 
-describe('the page reader copy', () => {
-  it('matches the app reader exactly', () => {
-    const app = readFileSync(
-      path.join(root, 'src/main/page-info/collect-page.js'),
-      'utf8',
-    );
-    const extension = readFileSync(
-      path.join(root, 'packages/pie-extension/collect-page.js'),
-      'utf8',
-    );
-    expect(extension).toBe(app);
-  });
-});
-
 describe('the manifest', () => {
   const manifest = JSON.parse(
     readFileSync(

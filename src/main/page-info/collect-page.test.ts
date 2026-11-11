@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { PageData as PageDataType } from '../../shared/types';
 import { PageData } from '../../shared/schemas/page-info.schema';
 import { TRACKERS, detectTrackers } from '../../shared/page-audit';
-import COLLECT_PAGE from './collect-page.js?raw';
+// The one copy, which the extension runs inside each page.
+import COLLECT_PAGE from '../../../packages/pie-extension/collect-page.js?raw';
 
 // The collector's own word list, read from its source, so the two can't drift.
 const TRACKER_WORD_SOURCE = new RegExp(
