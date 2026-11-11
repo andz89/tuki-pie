@@ -126,6 +126,32 @@ describe('checkHreflang', () => {
     ).toEqual([]);
   });
 
+  it('finds itself when the page was opened from an ad or a mail', () => {
+    const tags = [
+      { hreflang: 'de', href: 'https://example.com/de' },
+      { hreflang: 'x-default', href: 'https://example.com/' },
+    ];
+    expect(
+      checkHreflang(tags, {
+        pageUrl:
+          'https://example.com/de?utm_source=news&utm_medium=mail&gclid=abc',
+        canonical: null,
+      }),
+    ).toEqual([]);
+  });
+
+  it('still tells pages apart by their own query', () => {
+    const tags = [
+      { hreflang: 'de', href: 'https://example.com/?lang=de' },
+      { hreflang: 'x-default', href: 'https://example.com/' },
+    ];
+    const messages = checkHreflang(tags, {
+      pageUrl: 'https://example.com/?lang=fr',
+      canonical: null,
+    }).map(({ message }) => message);
+    expect(messages.join()).toMatch(/points to this page itself/);
+  });
+
   it('has nothing to say about a page with no tags', () => {
     expect(
       checkHreflang([], { pageUrl: 'https://example.com/', canonical: null }),

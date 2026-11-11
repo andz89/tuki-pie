@@ -121,6 +121,16 @@ describe('collect-page', () => {
     });
   });
 
+  it("names a heading that holds only an image by the image's alt text", () => {
+    const { headings } = read(
+      '<h1><a href="/"><img src="/logo.png" alt="Acme Shop"></a></h1><h2><img src="/x.png"></h2>',
+    );
+    expect(headings).toEqual([
+      { level: 1, text: 'Acme Shop' },
+      { level: 2, text: '' },
+    ]);
+  });
+
   it('collapses heading whitespace and cuts long headings', () => {
     const { headings } = read(
       `<h2>  one

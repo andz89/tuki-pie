@@ -86,14 +86,14 @@ const looksRandom = (value: string) =>
   UUID.test(value) ||
   (RANDOM.test(value) && /[a-z]/i.test(value) && /\d/.test(value));
 
-const isPassedOver = (key: string) => {
+// utm_ keys and ad click IDs: added by whoever linked here, not the page's own.
+export function isTrackingKey(key: string): boolean {
   const lower = key.toLowerCase();
-  return (
-    lower.startsWith('utm_') ||
-    TRACKING_KEYS.has(lower) ||
-    WORDPRESS_READ_KEYS.has(lower)
-  );
-};
+  return lower.startsWith('utm_') || TRACKING_KEYS.has(lower);
+}
+
+const isPassedOver = (key: string) =>
+  isTrackingKey(key) || WORDPRESS_READ_KEYS.has(key.toLowerCase());
 
 export function carriesToken(href: string): boolean {
   let url: URL;

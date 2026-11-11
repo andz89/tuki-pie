@@ -66,9 +66,18 @@
 
   const canonical = document.querySelector('link[rel="canonical"]')?.href;
 
+  const squash = (text) => text.replace(/\s+/g, ' ').trim();
+  // A logo in the H1 is a common pattern: its alt text is the heading then.
+  const headingText = (heading) =>
+    squash(heading.textContent) ||
+    squash(
+      [...heading.querySelectorAll('img[alt]')]
+        .map((image) => image.alt)
+        .join(' '),
+    );
   const headings = all('h1, h2, h3, h4, h5, h6').map((heading) => ({
     level: Number(heading.tagName[1]),
-    text: heading.textContent.replace(/\s+/g, ' ').trim().slice(0, MAX_HEADING),
+    text: headingText(heading).slice(0, MAX_HEADING),
   }));
 
   const robots = all(

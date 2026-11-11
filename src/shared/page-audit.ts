@@ -1,3 +1,5 @@
+import { isTrackingKey } from './link-tokens';
+
 // SEO and tracking checks on plain data read from a page, so they can be
 // tested without a browser. Ported from the Tuki extension.
 
@@ -172,6 +174,21 @@ export function checkHeadings(headings: PageHeading[]): PageIssue[] {
 const HREFLANG_PATTERN =
   /^(x-default|[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\d{3}))?)$/i;
 
+function withoutTrackingKeys(href: string): string {
+  try {
+    const url = new URL(href);
+    // A copy, as deleting from the live list while walking it skips keys.
+    for (const key of new Set(url.searchParams.keys())) {
+      if (isTrackingKey(key)) {
+        url.searchParams.delete(key);
+      }
+    }
+    return url.href;
+  } catch {
+    return href;
+  }
+}
+
 export function normalizeUrl(href: string): string {
   try {
     const url = new URL(href);
@@ -225,12 +242,15 @@ export function checkHreflang(
     );
   }
 
+  // A page opened from an ad or a mail carries utm_ keys and click IDs that
+  // its hreflang tags never list, so those don't count.
+  const comparable = (href: string) => normalizeUrl(withoutTrackingKeys(href));
   const self = new Set(
     [pageUrl, canonical]
       .filter((value): value is string => Boolean(value))
-      .map(normalizeUrl),
+      .map(comparable),
   );
-  if (!hreflangs.some(({ href }) => self.has(normalizeUrl(href)))) {
+  if (!hreflangs.some(({ href }) => self.has(comparable(href)))) {
     issues.push(
       issue(
         'warning',
