@@ -313,6 +313,25 @@ describe('settings', () => {
     settings.update({ pin: 'pinned' });
     expect(settings.get().pin).toBe('pinned');
   });
+
+  it('falls back to the default for one stored value that no longer fits', () => {
+    const db = new Database(':memory:');
+    migrate(db);
+    const repository = new SettingsRepository(db);
+    repository.set('size', 'huge');
+    repository.set('theme', 'light');
+    const loaded = new SettingsService(repository).get();
+    expect(loaded.size).toBe('medium');
+    expect(loaded.theme).toBe('light');
+  });
+
+  it('ignores stored keys the app no longer knows', () => {
+    const db = new Database(':memory:');
+    migrate(db);
+    const repository = new SettingsRepository(db);
+    repository.set('retired', 'x');
+    expect(new SettingsService(repository).get()).not.toHaveProperty('retired');
+  });
 });
 
 describe('first run', () => {
