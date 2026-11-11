@@ -37,10 +37,13 @@ export function pickOpenTab(tabs, url, focusedWindowId) {
   );
 }
 
-export function createTabs({ chrome, sendEvent }) {
+export function createTabs({
+  chrome,
+  sendEvent,
+  capturer = createCapture({ chrome }),
+}) {
   // Kept in session storage, so it survives the service worker sleeping.
   let saved = null;
-  const capturer = createCapture({ chrome });
   let capturing = 0;
   let quietUntil = 0;
 
@@ -126,8 +129,12 @@ export function createTabs({ chrome, sendEvent }) {
     if (checked === null) {
       return;
     }
+    // One of your tabs is never stopped: a half-filled form would be lost.
+    if (checked !== own) {
+      return;
+    }
     // Nothing arrived yet, so stopping the old page wouldn't stop the new one.
-    if (checked === own && !committed) {
+    if (!committed) {
       await chrome.tabs.update(own, { url: 'about:blank' });
       return;
     }
@@ -193,13 +200,16 @@ export function createTabs({ chrome, sendEvent }) {
   // A picture of the whole checked page, or { error }.
   // The capture switches tabs itself, which Page Info must not follow.
   // args: { device, reload }, the size picked in the Screenshot tab.
+  // Only its own tab is reloaded for a device. One of yours is taken as it
+  // is, since reloading it could lose what you typed.
   async function capture(args) {
     const tabId = await checkedTab();
+    const { own } = await ids();
     capturing += 1;
     try {
       return await capturer.capture(tabId, {
         device: typeof args?.device === 'string' ? args.device : '',
-        reload: args?.reload === true,
+        reload: args?.reload === true && tabId === own,
       });
     } finally {
       capturing -= 1;

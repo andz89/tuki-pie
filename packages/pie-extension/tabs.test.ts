@@ -235,12 +235,12 @@ describe('stop', () => {
     expect(chrome.scripting.executeScript).toHaveBeenCalledOnce();
   });
 
-  it('never clears one of your tabs', async () => {
+  it('never clears or stops one of your tabs', async () => {
     openTabs = [{ id: 7, url: 'https://a.com/', status: 'loading' }];
     await tabs.open({ url: 'https://a.com' });
     await tabs.stop();
     expect(chrome.tabs.update).not.toHaveBeenCalled();
-    expect(chrome.scripting.executeScript).toHaveBeenCalledOnce();
+    expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
   });
 });
 
@@ -398,6 +398,33 @@ describe('the active tab', () => {
 });
 
 describe('capture', () => {
+  function withFakeCapturer() {
+    const capturer = { capture: vi.fn(async () => ({ dataUrl: 'x' })) };
+    tabs = createTabs({ chrome, sendEvent, capturer });
+    return capturer;
+  }
+
+  it('reloads its own tab as the device when asked', async () => {
+    const capturer = withFakeCapturer();
+    await tabs.open({ url: 'https://a.com' });
+    await tabs.capture({ device: 'Pixel 9', reload: true });
+    expect(capturer.capture).toHaveBeenCalledWith(100, {
+      device: 'Pixel 9',
+      reload: true,
+    });
+  });
+
+  it('never reloads one of your tabs, even when asked', async () => {
+    const capturer = withFakeCapturer();
+    openTabs = [{ id: 7, url: 'https://a.com/', status: 'complete' }];
+    await tabs.open({ url: 'https://a.com' });
+    await tabs.capture({ device: 'Pixel 9', reload: true });
+    expect(capturer.capture).toHaveBeenCalledWith(7, {
+      device: 'Pixel 9',
+      reload: false,
+    });
+  });
+
   it('needs a checked tab', async () => {
     await expect(tabs.capture()).rejects.toThrow('no-tab');
   });
