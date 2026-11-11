@@ -34,6 +34,8 @@ export function buildPageReport(raw: unknown): PageReport | null {
       ...checkHreflang(hreflang, { pageUrl: url, canonical: meta.canonical }),
     ],
     robots,
+    // From every heading: the list below keeps only the first 200.
+    h1Count: headings.filter(({ level }) => level === 1).length,
     headings: limitList(headings, HEADINGS_LIMIT),
     hreflang: limitList(hreflang, HREFLANG_LIMIT),
   };

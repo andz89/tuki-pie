@@ -65,6 +65,7 @@ export interface PageReport {
   seo: {
     issues: PageIssue[];
     robots: PageRobot[];
+    h1Count: number;
     headings: LimitedList<PageHeading>;
     hreflang: LimitedList<PageHreflang>;
   };

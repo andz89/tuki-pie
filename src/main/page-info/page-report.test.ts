@@ -37,6 +37,15 @@ describe('buildPageReport', () => {
     expect(report?.seo.headings.items).toHaveLength(200);
   });
 
+  it('counts H1s past the first 200 headings', () => {
+    const headings = [
+      ...repeat(250, () => ({ level: 2, text: 'x' })),
+      { level: 1, text: 'Late' },
+    ];
+    const report = buildPageReport({ ...PAGE, headings });
+    expect(report?.seo.h1Count).toBe(1);
+  });
+
   it('limits hreflang to 100', () => {
     const hreflang = repeat(120, (n) => ({
       hreflang: 'de',

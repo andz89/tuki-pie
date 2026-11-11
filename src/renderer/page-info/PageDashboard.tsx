@@ -254,24 +254,22 @@ function ScreenshotTile({
 
 export function PageDashboard({
   report,
-  listedLinks,
-  linkCount,
+  countedLinks,
   chromeConnected,
   onOpen,
 }: {
   report: PageReport;
-  // The links the Links tab lists, before its own choices.
-  listedLinks: PageLink[];
-  linkCount: number;
+  // The links the Links tab counts: after filters, ticks and duplicates.
+  countedLinks: PageLink[];
   chromeConnected: boolean;
   onOpen: OpenTab;
 }) {
   const { issues, seo, tracking, images, hyvorTalk, url } = report;
   const errors = issues.filter(({ level }) => level === 'error').length;
   const warnings = issues.length - errors;
-  const headings = headingCounts(seo.headings);
+  const headings = headingCounts(seo);
   const firstHeadings = outline(seo.headings, HEADINGS_SHOWN);
-  const links = linkBreakdown(listedLinks, url);
+  const links = linkBreakdown(countedLinks, url);
   const linkParts = [
     { label: 'Same site', count: links.sameSite, kind: 'same' },
     { label: 'Other sites', count: links.otherSites, kind: 'other' },
@@ -295,7 +293,7 @@ export function PageDashboard({
           label="Trackers"
           open={openInfo}
         />
-        <Stat value={linkCount} label="Links" open={() => onOpen('links')} />
+        <Stat value={links.total} label="Links" open={() => onOpen('links')} />
         <Stat
           value={images.length}
           label="Images"
@@ -455,7 +453,7 @@ export function PageDashboard({
         index={tile++}
         action={{ label: 'Open list', open: () => onOpen('links') }}
       >
-        {links.unique === 0 ? (
+        {links.total === 0 ? (
           <p className="dash-sub">No links found.</p>
         ) : (
           <>

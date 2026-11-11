@@ -8,37 +8,35 @@ export function hostOf(url: string): string {
   return URL.canParse(url) ? withoutWww(new URL(url).hostname) : url;
 }
 
+// Counts every link it is given, so the parts add up to the Links stat when
+// both come from the links the Links tab counts.
 export interface LinkBreakdown {
-  unique: number;
+  total: number;
   sameSite: number;
   otherSites: number;
   // mailto:, tel: and anything else that isn't a web address.
   otherKinds: number;
-  // Addresses whose every copy is hidden on the page.
+  // Links hidden on the page.
   hidden: number;
   // Extra copies of an address already counted.
   duplicates: number;
 }
 
-// Each address once. "www." doesn't make another site.
+// "www." doesn't make another site.
 export function linkBreakdown(
   links: PageLink[],
   pageUrl: string,
 ): LinkBreakdown {
   const pageHost = hostOf(pageUrl);
-  const allHidden = new Map<string, boolean>();
-  for (const { href, hidden } of links) {
-    allHidden.set(href, (allHidden.get(href) ?? true) && hidden);
-  }
   const result: LinkBreakdown = {
-    unique: allHidden.size,
+    total: links.length,
     sameSite: 0,
     otherSites: 0,
     otherKinds: 0,
     hidden: 0,
-    duplicates: links.length - allHidden.size,
+    duplicates: links.length - new Set(links.map(({ href }) => href)).size,
   };
-  for (const [href, hidden] of allHidden) {
+  for (const { href, hidden } of links) {
     if (hidden) {
       result.hidden += 1;
     }
@@ -54,14 +52,14 @@ export function linkBreakdown(
   return result;
 }
 
-export function headingCounts(headings: LimitedList<PageHeading>): {
-  h1: number;
-  total: number;
-} {
-  return {
-    h1: headings.items.filter(({ level }) => level === 1).length,
-    total: headings.total,
-  };
+export function headingCounts({
+  h1Count,
+  headings,
+}: {
+  h1Count: number;
+  headings: LimitedList<PageHeading>;
+}): { h1: number; total: number } {
+  return { h1: h1Count, total: headings.total };
 }
 
 export type LengthState = 'missing' | 'short' | 'ok' | 'long';

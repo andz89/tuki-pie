@@ -26,7 +26,7 @@ describe('linkBreakdown', () => {
         PAGE,
       ),
     ).toEqual({
-      unique: 5,
+      total: 5,
       sameSite: 2,
       otherSites: 1,
       otherKinds: 2,
@@ -35,21 +35,21 @@ describe('linkBreakdown', () => {
     });
   });
 
-  it('counts each address once and the extra copies as duplicates', () => {
+  it('counts every link it is given, so the parts add up to the Links stat', () => {
     const result = linkBreakdown(
       [
         link('https://shop.com/a'),
         link('https://shop.com/a'),
-        link('https://shop.com/a'),
+        link('https://other.com/'),
       ],
       PAGE,
     );
-    expect(result.unique).toBe(1);
-    expect(result.sameSite).toBe(1);
-    expect(result.duplicates).toBe(2);
+    expect(result.total).toBe(3);
+    expect(result.sameSite + result.otherSites + result.otherKinds).toBe(3);
+    expect(result.duplicates).toBe(1);
   });
 
-  it('counts an address as hidden only when every copy is hidden', () => {
+  it('counts the hidden links among them', () => {
     const result = linkBreakdown(
       [
         link('https://shop.com/a', true),
@@ -58,7 +58,7 @@ describe('linkBreakdown', () => {
       ],
       PAGE,
     );
-    expect(result.hidden).toBe(1);
+    expect(result.hidden).toBe(2);
   });
 
   it('reads a relative address against the page', () => {
@@ -67,17 +67,19 @@ describe('linkBreakdown', () => {
 });
 
 describe('headingCounts', () => {
-  it('counts H1s among the headings and keeps the full total', () => {
+  it('takes the H1 count from the whole page, not the listed headings', () => {
     expect(
       headingCounts({
-        total: 30,
-        items: [
-          { level: 1, text: 'A' },
-          { level: 2, text: 'B' },
-          { level: 1, text: 'C' },
-        ],
+        h1Count: 3,
+        headings: {
+          total: 300,
+          items: [
+            { level: 2, text: 'B' },
+            { level: 1, text: 'C' },
+          ],
+        },
       }),
-    ).toEqual({ h1: 2, total: 30 });
+    ).toEqual({ h1: 3, total: 300 });
   });
 });
 

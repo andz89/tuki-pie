@@ -57,11 +57,13 @@ export function PageInfoWindow() {
   const [choices, setChoices] = useState<LinkChoices>(new Map());
   // The tab counts what the Links list shows.
   const listedLinks = report ? shownLinks(report.links, linkFilter) : [];
-  const linkCount = includedLinks(
+  // One list for the tab's count and every link number on the dashboard.
+  const countedLinks = includedLinks(
     hideDuplicates ? uniqueLinks(listedLinks) : listedLinks,
     choices,
     linkFilter,
-  ).length;
+  );
+  const linkCount = countedLinks.length;
   const choose = (href: string, included: boolean) =>
     setChoices((current) => new Map(current).set(href, included));
   // Ticks every plain link again; marked links keep their ticks.
@@ -283,8 +285,7 @@ export function PageInfoWindow() {
             <PageDashboard
               key={checkCount}
               report={report}
-              listedLinks={listedLinks}
-              linkCount={linkCount}
+              countedLinks={countedLinks}
               chromeConnected={chromeConnected}
               onOpen={setTab}
             />
