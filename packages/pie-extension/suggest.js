@@ -26,6 +26,12 @@
     'range',
     'hidden',
   ]);
+  // Fields whose values are secrets the list must never offer to fill.
+  const SECRET_AUTOCOMPLETE =
+    /(^|\s)(one-time-code|current-password|new-password|cc-[a-z-]+)(\s|$)/;
+  // A pick this soon after the list opens or moves can't be a real choice:
+  // a page could slide the list under a click meant for something else.
+  const PICK_DELAY_MS = 300;
   const BLUE = '#2563eb';
   const OFF = { enabled: false, groups: [] };
 
@@ -46,12 +52,30 @@
     onChanged,
     isTrusted = (event) => event.isTrusted,
     shadowMode = 'closed',
+    now = () => Date.now(),
+    elementAt = (x, y) => document.elementFromPoint(x, y),
   }) {
     let settings = OFF;
     let active = null;
+    // When the list last appeared or moved, see PICK_DELAY_MS.
+    let shownAt = 0;
+    let shownSpot = '';
 
+    // Page styles can't reach inside the shadow root, but they can reach the
+    // host. Inline !important beats any page rule, so it stays visible.
     const host = document.createElement('div');
-    host.style.cssText = 'all: initial';
+    for (const [name, value] of [
+      ['all', 'initial'],
+      ['display', 'block'],
+      ['opacity', '1'],
+      ['visibility', 'visible'],
+      ['filter', 'none'],
+      ['transform', 'none'],
+      ['clip-path', 'none'],
+      ['mix-blend-mode', 'normal'],
+    ]) {
+      host.style.setProperty(name, value, 'important');
+    }
     const box = document.createElement('div');
     box.setAttribute('role', 'listbox');
     host.attachShadow({ mode: shadowMode }).appendChild(box);
@@ -81,6 +105,31 @@
     // Inside the list: events from its shadow root reach the page as the host.
     const inBox = (event) => event.composedPath().includes(host);
 
+    // Whether the person can see the list as it is: nothing of the page on
+    // top of it where they clicked, and neither it nor anything around it
+    // made see-through or hidden. Checked before every pick, as a page can
+    // change any of that while the list is open.
+    function isShown(event) {
+      const fromPointer = event.clientX !== 0 || event.clientY !== 0;
+      if (fromPointer && elementAt(event.clientX, event.clientY) !== host) {
+        return false;
+      }
+      for (let el = host; el; el = el.parentElement) {
+        const style = getComputedStyle(el);
+        if (
+          Number(style.opacity) < 1 ||
+          style.visibility === 'hidden' ||
+          style.display === 'none'
+        ) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    const canPick = (event) =>
+      isTrusted(event) && now() - shownAt >= PICK_DELAY_MS && isShown(event);
+
     // Sets the value the way typing would, so frameworks (React, Vue) see it.
     function setValue(el, value) {
       const proto =
@@ -103,6 +152,11 @@
       box.style.left = `${rect.left}px`;
       box.style.top = `${rect.bottom + 4}px`;
       box.style.width = `${Math.max(rect.width, 150)}px`;
+      const spot = `${box.style.left},${box.style.top},${box.style.width}`;
+      if (spot !== shownSpot) {
+        shownSpot = spot;
+        shownAt = now();
+      }
     }
 
     function hide() {
@@ -193,9 +247,15 @@
       };
       el.addEventListener('mousedown', (event) => {
         event.preventDefault();
-        once();
+        if (canPick(event)) {
+          once();
+        }
       });
-      el.addEventListener('click', once);
+      el.addEventListener('click', (event) => {
+        if (canPick(event)) {
+          once();
+        }
+      });
     }
 
     function fillAll(targets, valueFor) {
@@ -349,6 +409,7 @@
       }
       mount();
       active = input;
+      shownSpot = '';
       place();
       box.replaceChildren();
       if (multi) {
@@ -371,6 +432,12 @@
 
     function isTextField(el) {
       if (!el || el.disabled || el.readOnly) {
+        return false;
+      }
+      const autocomplete = (
+        el.getAttribute('autocomplete') ?? ''
+      ).toLowerCase();
+      if (el.type === 'password' || SECRET_AUTOCOMPLETE.test(autocomplete)) {
         return false;
       }
       if (el instanceof HTMLTextAreaElement) {

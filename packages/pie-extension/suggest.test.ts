@@ -20,6 +20,8 @@ type Start = (options: {
   };
   isTrusted?: (event: Event) => boolean;
   shadowMode?: 'open' | 'closed';
+  now?: () => number;
+  elementAt?: (x: number, y: number) => Element | null;
 }) => Started;
 
 const LIST: List = {
@@ -34,6 +36,13 @@ const LIST: List = {
 };
 
 let current: Started | null = null;
+// The time the list sees, moved on by hand.
+let clock = 0;
+// What the page shows under the pointer; the list's host unless a test says.
+let elementAt: ((x: number, y: number) => Element | null) | null = null;
+
+const hostOf = (box: HTMLElement) =>
+  (box.getRootNode() as ShadowRoot).host as Element;
 let changeListeners: ((changes: object, area: string) => void)[] = [];
 
 async function load(
@@ -57,6 +66,8 @@ async function load(
     },
     isTrusted: trusted ? () => true : undefined,
     shadowMode: 'open',
+    now: () => clock,
+    elementAt: (x, y) => (elementAt ? elementAt(x, y) : hostOf(current!.box)),
   });
   await new Promise((done) => setTimeout(done));
   return current;
@@ -91,17 +102,29 @@ const parts = (box: HTMLElement, kind: string) => [
 const itemTexts = (box: HTMLElement) =>
   parts(box, 'item').map((item) => item.dataset.value);
 
-function pick(box: HTMLElement, value: string): void {
+// A press on a part of the list, once the person has had time to see it.
+function press(part: HTMLElement, waitMs = 1000): void {
+  clock += waitMs;
+  part.dispatchEvent(
+    new MouseEvent('mousedown', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 5,
+      clientY: 5,
+    }),
+  );
+}
+
+function pick(box: HTMLElement, value: string, waitMs = 1000): void {
   const item = parts(box, 'item').find((each) => each.dataset.value === value);
   if (!item) throw new Error(`No item ${value}`);
-  item.dispatchEvent(
-    new MouseEvent('mousedown', { bubbles: true, cancelable: true }),
-  );
+  press(item, waitMs);
 }
 
 afterEach(() => {
   current?.stop();
   current = null;
+  elementAt = null;
 });
 
 describe('opening', () => {
@@ -267,9 +290,7 @@ describe('filling several fields', () => {
     click(field('a'), true);
     const fill = parts(box, 'fill')[0];
     expect(fill.textContent).toBe('Fill in order (2)');
-    fill.dispatchEvent(
-      new MouseEvent('mousedown', { bubbles: true, cancelable: true }),
-    );
+    press(fill);
     expect([field('a').value, field('b').value, field('c').value]).toEqual([
       '01',
       '13',
@@ -329,5 +350,61 @@ describe('stopping', () => {
     expect(spy).toHaveBeenCalled();
     click(field('a'));
     expect(started.box.isConnected).toBe(false);
+  });
+});
+
+describe('fields it never offers values for', () => {
+  it.each([
+    '<input id="a" type="password">',
+    '<input id="a" autocomplete="one-time-code">',
+    '<input id="a" autocomplete="cc-number">',
+    '<input id="a" autocomplete="billing cc-csc">',
+    '<input id="a" autocomplete="current-password">',
+  ])('%s', async (html) => {
+    const { box } = await load(html);
+    click(field('a'));
+    expect(isOpen(box)).toBe(false);
+  });
+});
+
+describe('a pick the person could not have meant', () => {
+  it('is ignored right after the list opens', async () => {
+    const { box } = await load('<input id="a">');
+    click(field('a'));
+    pick(box, '13', 100);
+    expect(field('a').value).toBe('');
+    pick(box, '13', 300);
+    expect(field('a').value).toBe('13');
+  });
+
+  it('is ignored when something else is under the pointer', async () => {
+    const { box } = await load('<input id="a"><div id="cover"></div>');
+    elementAt = () => field<HTMLElement>('cover');
+    click(field('a'));
+    pick(box, '13');
+    expect(field('a').value).toBe('');
+  });
+
+  it('is ignored when the page made the list see-through', async () => {
+    const { box } = await load('<input id="a">');
+    click(field('a'));
+    hostOf(box).style.opacity = '0';
+    pick(box, '13');
+    expect(field('a').value).toBe('');
+  });
+
+  it('is ignored when the page hid a parent of the list', async () => {
+    const { box } = await load('<input id="a">');
+    click(field('a'));
+    document.body.style.opacity = '0.1';
+    pick(box, '13');
+    document.body.style.opacity = '';
+    expect(field('a').value).toBe('');
+  });
+
+  it('keeps its own look over the page styles', async () => {
+    const { box } = await load('<input id="a">');
+    click(field('a'));
+    expect(hostOf(box).style.getPropertyPriority('opacity')).toBe('important');
   });
 });
