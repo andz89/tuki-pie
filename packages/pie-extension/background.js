@@ -1,5 +1,6 @@
 import { createConnection, createRequestHandler } from './connection.js';
 import { watchTabs } from './events.js';
+import { createImageFetcher } from './image.js';
 import { createSuggestionStore } from './suggestions-store.js';
 import { createTabs } from './tabs.js';
 
@@ -25,6 +26,7 @@ connection = createConnection({
     activeTab: tabs.activeTab,
     capture: tabs.capture,
     setSuggestions: suggestions.save,
+    image: createImageFetcher(),
   }),
 });
 

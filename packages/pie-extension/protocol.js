@@ -31,6 +31,7 @@ export const ACTIONS = [
   'openTabs',
   'capture',
   'setSuggestions',
+  'image',
 ];
 
 // Most links Page Info opens in one go.
