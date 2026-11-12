@@ -4,6 +4,7 @@ import { canOpen } from '../../shared/link-rules';
 import type { LinkFilter } from '../../shared/link-rules';
 import { MAX_OPEN_LINKS } from '../../shared/types';
 import { PieIcon } from '../components/icons/SliceIcon';
+import { ChromeImage } from './ChromeImage';
 import { InfoEmpty } from './InfoCard';
 import { pageInfoBridge } from './page-info-bridge';
 import { shareImageSource } from './page-info-view';
@@ -62,12 +63,14 @@ const ImageRow = memo(function ImageRow({
             title="Click to enlarge"
             onClick={() => onEnlarge(url)}
           >
-            <img
-              src={source}
+            {/* Asked of Chrome only once the row scrolls into view. */}
+            <ChromeImage
+              url={source}
+              size="thumb"
               alt=""
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              onError={() => onBroken(url)}
+              lazy
+              onBroken={() => onBroken(url)}
+              offline={<span className="is-waiting" />}
             />
           </button>
         ) : (
@@ -179,12 +182,18 @@ function ImageViewer({
       {url !== null && (
         <>
           {source !== null && !broken ? (
-            <img
+            // The full image is fetched only now, when it is shown.
+            <ChromeImage
               key={url}
-              src={source}
+              url={source}
+              size="full"
               alt=""
-              referrerPolicy="no-referrer"
-              onError={onBroken}
+              onBroken={onBroken}
+              offline={
+                <p className="image-viewer-broken">
+                  Connect Chrome to see images.
+                </p>
+              }
             />
           ) : (
             <p className="image-viewer-broken">Could not load this image.</p>
@@ -337,6 +346,11 @@ export const PageImages = memo(function PageImages({
         )}
       </div>
 
+      {!chromeConnected && (
+        <p className="info-note">
+          Connect Chrome to see images. Page Info gets them through Chrome.
+        </p>
+      )}
       {confirming && (
         <div className="link-confirm">
           <p>

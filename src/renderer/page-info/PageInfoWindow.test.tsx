@@ -5,6 +5,7 @@ import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildPageReport } from '../../main/page-info/page-report';
 import type { PageData, PageInfoUpdate } from '../../shared/types';
+import { pageInfoBridge } from './page-info-bridge';
 import { shownLinks } from './page-links';
 import { usePageInfoStore } from './page-info.store';
 import { PageInfoWindow } from './PageInfoWindow';
@@ -14,6 +15,10 @@ vi.mock('./page-info-bridge', () => ({
     getState: vi.fn(async () => ({ ok: false, error: 'not in a test' })),
     onUpdate: vi.fn(() => () => undefined),
     settings: { get: vi.fn(async () => ({ ok: false, error: 'no' })) },
+    image: vi.fn(async () => ({
+      ok: true,
+      value: { dataUrl: 'data:image/webp;base64,AA', width: 1, height: 1 },
+    })),
   },
 }));
 vi.mock('./page-links', async (original) => {
@@ -57,6 +62,9 @@ beforeEach(() => {
   );
   // jsdom has no CSS Custom Highlight API; the window then skips marking.
   vi.stubGlobal('CSS', {});
+  // Nor <dialog> methods, which the image viewer uses.
+  HTMLDialogElement.prototype.close ??= function close() {};
+  HTMLDialogElement.prototype.showModal ??= function showModal() {};
   container = document.createElement('div');
   document.body.append(container);
 });
@@ -126,6 +134,33 @@ describe('PageInfoWindow', () => {
       expect(container.querySelectorAll('.link-row')).toHaveLength(301);
     } finally {
       PAGE.links.pop();
+    }
+  });
+
+  it('asks Chrome for an image only once its row scrolls into view', async () => {
+    const shown: Array<(visible: boolean) => void> = [];
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(
+          callback: (entries: { isIntersecting: boolean }[]) => void,
+        ) {
+          shown.push((visible) => callback([{ isIntersecting: visible }]));
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    PAGE.images = ['https://example.com/a.png', 'https://example.com/b.png'];
+    try {
+      vi.mocked(pageInfoBridge.image).mockClear();
+      await showReport();
+      expect(pageInfoBridge.image).not.toHaveBeenCalled();
+      // The newest watcher: the dashboard tile remounts once per check.
+      await act(async () => shown.at(-1)?.(true));
+      expect(pageInfoBridge.image).toHaveBeenCalledOnce();
+    } finally {
+      PAGE.images = [];
     }
   });
 

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import {
   DESCRIPTION_MAX,
@@ -16,6 +15,7 @@ import {
 } from './page-dashboard';
 import type { LengthState } from './page-dashboard';
 import type { PageLink } from './page-links';
+import { ChromeImage } from './ChromeImage';
 import { shareImageSource } from './page-info-view';
 import { usePageInfoStore } from './page-info.store';
 import { useCountUp } from './use-count-up';
@@ -127,19 +127,20 @@ function LengthBar({
 }
 
 function Thumb({ url, pageUrl }: { url: string; pageUrl: string }) {
-  const [broken, setBroken] = useState(false);
   const source = shareImageSource(url, pageUrl);
-  if (source === null || broken) {
-    return <div className="dash-thumb is-broken" aria-hidden="true" />;
+  const empty = <div className="dash-thumb is-broken" aria-hidden="true" />;
+  if (source === null) {
+    return empty;
   }
   return (
-    <img
+    <ChromeImage
       className="dash-thumb"
-      src={source}
+      url={source}
+      size="thumb"
       alt=""
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      onError={() => setBroken(true)}
+      lazy
+      fallback={empty}
+      offline={empty}
     />
   );
 }
@@ -181,22 +182,23 @@ function SocialTile({ report, index }: { report: PageReport; index: number }) {
     featuredImages.find(({ property }) => property === 'og:image') ??
     featuredImages[0];
   const source = image ? shareImageSource(image.url, url) : null;
-  const [broken, setBroken] = useState(false);
+  const emptyWith = (words: string) => (
+    <div className="dash-share-image is-empty">{words}</div>
+  );
   return (
     <Tile title="Social preview" index={index}>
       <div className="dash-share">
-        {source && !broken ? (
-          <img
+        {source ? (
+          <ChromeImage
             className="dash-share-image"
-            src={source}
+            url={source}
+            size="thumb"
             alt="Share image"
-            referrerPolicy="no-referrer"
-            onError={() => setBroken(true)}
+            fallback={emptyWith('Could not load the share image')}
+            offline={emptyWith('Connect Chrome to see the share image')}
           />
         ) : (
-          <div className="dash-share-image is-empty">
-            {image ? 'Could not load the share image' : 'No share image'}
-          </div>
+          emptyWith(image ? 'Could not load the share image' : 'No share image')
         )}
         <div className="dash-share-text">
           <span className="dash-share-host">{hostOf(url)}</span>

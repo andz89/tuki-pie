@@ -1,14 +1,21 @@
 import { useRef, useState } from 'react';
 import type { PageReport } from '../../shared/types';
+import { ChromeImage } from './ChromeImage';
 import { InfoCard, InfoEmpty } from './InfoCard';
 import { shareImageSource } from './page-info-view';
 
+const COULD_NOT_LOAD = (
+  <p className="info-warning">Could not load this image.</p>
+);
+
 function SharePreview({ source, alt }: { source: string; alt: string }) {
   const [didFail, setDidFail] = useState(false);
+  // The full image is fetched only while the big view is open.
+  const [isOpen, setIsOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   if (didFail) {
-    return <p className="info-warning">Could not load this image.</p>;
+    return COULD_NOT_LOAD;
   }
   return (
     <>
@@ -17,14 +24,17 @@ function SharePreview({ source, alt }: { source: string; alt: string }) {
         className="info-share-open"
         aria-label={`Show ${alt} full size`}
         title="Click to enlarge"
-        onClick={() => dialogRef.current?.showModal()}
+        onClick={() => {
+          setIsOpen(true);
+          dialogRef.current?.showModal();
+        }}
       >
-        <img
+        <ChromeImage
           className="info-share-image"
-          src={source}
+          url={source}
+          size="thumb"
           alt={alt}
-          referrerPolicy="no-referrer"
-          onError={() => setDidFail(true)}
+          onBroken={() => setDidFail(true)}
         />
       </button>
       {/* A click anywhere, or Escape, closes the big view. */}
@@ -33,8 +43,16 @@ function SharePreview({ source, alt }: { source: string; alt: string }) {
         className="info-share-dialog"
         aria-label={alt}
         onClick={() => dialogRef.current?.close()}
+        onClose={() => setIsOpen(false)}
       >
-        <img src={source} alt={alt} referrerPolicy="no-referrer" />
+        {isOpen && (
+          <ChromeImage
+            url={source}
+            size="full"
+            alt={alt}
+            fallback={COULD_NOT_LOAD}
+          />
+        )}
       </dialog>
     </>
   );
