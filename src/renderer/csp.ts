@@ -2,14 +2,10 @@
 // build time by vite.renderer.config.mts. Scripts only come from the app
 // itself, so an injected <script> or inline handler can't run.
 
-// Page Info shows the checked page's images directly. Whether to keep that
-// is an open decision (B3 in docs/superpowers/specs/2026-11-11-deep-review-design.md).
-const REMOTE_IMAGE_PAGES = new Set(['page-info.html']);
-
 export function contentSecurityPolicy(page: string, isDev: boolean): string {
-  const images = REMOTE_IMAGE_PAGES.has(page)
-    ? "'self' data: blob: https: http:"
-    : "'self' data: blob:";
+  // No window loads an image from a website: Page Info gets the checked
+  // page's images through Chrome, as data. See ChromeImage.tsx.
+  const images = "'self' data: blob:";
   const directives = [
     "default-src 'none'",
     // The dev server adds an inline script for React refresh.

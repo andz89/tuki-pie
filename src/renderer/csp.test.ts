@@ -46,9 +46,10 @@ describe('the security policy', () => {
     expect(policy).toContain('ws://localhost:*');
   });
 
-  it('lets only Page Info show images from other sites', () => {
-    expect(contentSecurityPolicy('page-info.html', false)).toContain('https:');
-    expect(contentSecurityPolicy('index.html', false)).not.toContain('https:');
+  it.each(PAGES)('lets %s show no image from another site', (page) => {
+    const policy = contentSecurityPolicy(page, false);
+    expect(policy).toContain("img-src 'self' data: blob:;");
+    expect(policy).not.toMatch(/img-src[^;]*https?:/);
   });
 
   it('refuses a page without a head', () => {
