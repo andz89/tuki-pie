@@ -46,6 +46,8 @@ export const IpcChannels = {
   pageInfoCapture: 'page-info:capture',
   pageInfoSaveCapture: 'page-info:save-capture',
   pageInfoCopyCapture: 'page-info:copy-capture',
+  // A page image, fetched by Chrome.
+  pageInfoImage: 'page-info:image',
   panelChromeGet: 'panel:chrome-get',
   panelChromeNewCode: 'panel:chrome-new-code',
   panelChromeCopyCode: 'panel:chrome-copy-code',

@@ -93,6 +93,15 @@ export interface PageInfoUpdate {
   reportId: number;
 }
 
+// A page image as Chrome fetched it: small ('thumb') or as it came ('full').
+export type PageImageSize = 'thumb' | 'full';
+export interface PageImage {
+  dataUrl: string;
+  // The original size, when Chrome decoded it.
+  width: number | null;
+  height: number | null;
+}
+
 // A picture of the whole checked page, for the Screenshot tab.
 export interface PageScreenshot {
   dataUrl: string;
@@ -189,6 +198,8 @@ export interface PageInfoBridge {
   capture(size: CaptureSize): Promise<Result<PageScreenshot>>;
   saveCapture(): Promise<Result>;
   copyCapture(): Promise<Result>;
+  // A page image through Chrome; null when it couldn't be had.
+  image(url: string, size: PageImageSize): Promise<Result<PageImage | null>>;
   onUpdate(listener: (update: PageInfoUpdate) => void): () => void;
   settings: {
     get(): Promise<Result<Settings>>;

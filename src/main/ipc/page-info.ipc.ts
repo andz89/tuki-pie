@@ -19,6 +19,8 @@ import {
   goToChromeTab,
   setPageInfoOnTop,
 } from '../windows/page-info-window';
+import { getChromeBridge } from '../chrome-bridge/chrome-connection';
+import { PageImages } from '../page-info/page-images';
 import { handle } from './handle';
 
 const NO_SCREENSHOT = 'Take a screenshot first.';
@@ -66,6 +68,34 @@ function dashboardThumb(image: Electron.NativeImage): string {
 }
 
 export function registerPageInfoIpc(settings: SettingsService): void {
+  const images = new PageImages({
+    request: (action, args, timeoutMs) => {
+      const bridge = getChromeBridge();
+      return bridge
+        ? bridge.request(action, args, timeoutMs)
+        : Promise.reject(new Error('not-connected'));
+    },
+    currentPage: () => {
+      const update = getPageInfoController()?.state();
+      const report = update?.report;
+      return update && report
+        ? {
+            reportId: update.reportId,
+            url: report.url,
+            images: report.images,
+            featuredImages: report.featuredImages.map(({ url }) => url),
+          }
+        : null;
+    },
+  });
+
+  // Page images come only from Chrome; the window never loads them itself.
+  handle(
+    IpcChannels.pageInfoImage,
+    z.tuple([z.string().max(MAX_PAGE_URL), z.enum(['thumb', 'full'])]),
+    (url, size) => images.get(url, size),
+  );
+
   handle(
     IpcChannels.pageInfoGetState,
     z.tuple([]),

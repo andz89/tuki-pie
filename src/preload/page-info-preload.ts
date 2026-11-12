@@ -19,6 +19,8 @@ const bridge: PageInfoBridge = {
   capture: (size) => ipcRenderer.invoke(IpcChannels.pageInfoCapture, size),
   saveCapture: () => ipcRenderer.invoke(IpcChannels.pageInfoSaveCapture),
   copyCapture: () => ipcRenderer.invoke(IpcChannels.pageInfoCopyCapture),
+  image: (url, size) =>
+    ipcRenderer.invoke(IpcChannels.pageInfoImage, url, size),
   onUpdate: (listener) => {
     const handler = (_event: unknown, update: PageInfoUpdate) =>
       listener(update);

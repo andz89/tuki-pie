@@ -151,6 +151,18 @@ describe('saving Link filters', () => {
   });
 });
 
+describe('page images', () => {
+  it('takes only a small or a full picture', async () => {
+    await expect(
+      handlerFor(IpcChannels.pageInfoImage)(
+        eventFor(IpcChannels.pageInfoImage),
+        'https://a.com/x.png',
+        'huge',
+      ),
+    ).rejects.toThrow();
+  });
+});
+
 describe('the page screenshot', () => {
   it('sends the picture with its size', async () => {
     await expect(

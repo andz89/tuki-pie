@@ -94,6 +94,7 @@ export const CHANNEL_ROLES: Readonly<Record<string, readonly WindowRole[]>> = {
   [C.pageInfoCapture]: ['page-info'],
   [C.pageInfoSaveCapture]: ['page-info'],
   [C.pageInfoCopyCapture]: ['page-info'],
+  [C.pageInfoImage]: ['page-info'],
 
   [C.reminderList]: ['reminder'],
   [C.reminderOpen]: ['reminder'],
