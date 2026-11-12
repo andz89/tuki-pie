@@ -8,6 +8,7 @@ import type {
   PageScreenshot,
   Settings,
 } from '../../shared/types';
+import { blobUrlFromDataUrl } from './blob-url';
 import { pageInfoBridge } from './page-info-bridge';
 
 // What the window keeps of a screenshot. The full picture can be tens of
@@ -20,17 +21,7 @@ function shownScreenshot({
   dataUrl,
   ...rest
 }: PageScreenshot): ShownScreenshot {
-  const [head, base64 = ''] = dataUrl.split(',', 2);
-  const type = /^data:([^;,]+)/.exec(head)?.[1] ?? 'image/jpeg';
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return {
-    ...rest,
-    imageUrl: URL.createObjectURL(new Blob([bytes], { type })),
-  };
+  return { ...rest, imageUrl: blobUrlFromDataUrl(dataUrl) };
 }
 
 // The Screenshot tab. Only the button takes one, never opening the tab.
