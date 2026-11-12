@@ -43,23 +43,47 @@ export const CAPTURE_ERRORS = [
 class TimeoutError extends Error {}
 class NotDrawnError extends Error {}
 
-// In the page: scrolls through once so lazy images and scroll-triggered
-// content render, then goes to `backTo`, or where it was. Returns where it was.
-export async function scrollThrough(backTo) {
-  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const startY = scrollY;
-  const step = Math.max(innerHeight, 400);
-  for (
-    let y = 0, i = 0;
-    y < document.documentElement.scrollHeight && i < 40;
-    y += step, i++
-  ) {
-    scrollTo(0, y);
-    await pause(120);
+// Scrolling through before the picture: screens at most, the pause on each
+// so lazy images start, and the settle after going back.
+export const SCROLL_STEPS = 40;
+export const SCROLL_PAUSE_MS = 120;
+export const SCROLL_SETTLE_MS = 400;
+
+// In the page: where it is, how tall it is, and one screen's step.
+export function pageScrollState() {
+  return {
+    y: scrollY,
+    height: document.documentElement.scrollHeight,
+    step: Math.max(innerHeight, 400),
+  };
+}
+
+// In the page: scrolls to `y` and says how tall the page is now.
+export function pageScrollTo(y) {
+  scrollTo(0, y);
+  return document.documentElement.scrollHeight;
+}
+
+// Scrolls through once so lazy images and scroll-triggered content render,
+// then goes to `backTo`, or where it was. Returns where it was. `exec(func,
+// args)` runs one of the page functions above in the tab.
+// The waits run here in the extension, not in the page: Chrome slows a
+// page's own timers to about once a second while its window is behind
+// others, which made this take some 40 seconds instead of 5.
+export async function scrollThrough(exec, backTo) {
+  const start = await exec(pageScrollState, []);
+  if (!start || !Number.isFinite(start.height) || !(start.step > 0)) {
+    return backTo ?? 0;
   }
-  scrollTo(0, backTo ?? startY);
-  await pause(400);
-  return startY;
+  let height = start.height;
+  for (let y = 0, i = 0; y < height && i < SCROLL_STEPS; y += start.step, i++) {
+    const now = await exec(pageScrollTo, [y]);
+    height = Number.isFinite(now) ? now : height;
+    await new Promise((resolve) => setTimeout(resolve, SCROLL_PAUSE_MS));
+  }
+  await exec(pageScrollTo, [backTo ?? start.y]);
+  await new Promise((resolve) => setTimeout(resolve, SCROLL_SETTLE_MS));
+  return start.y;
 }
 
 // In the page: scrolls to y, waits two frames, reports where it landed.
@@ -152,8 +176,18 @@ export function createCapture({ chrome }) {
     if (previous) {
       await chrome.tabs.update(tab.id, { active: true });
     }
+    // A window behind others, or minimized, doesn't draw its page, so the
+    // capture would wait on it. It comes forward for the capture.
+    let wasMinimized = false;
     if (focusWindow) {
-      await chrome.windows.update(tab.windowId, { focused: true });
+      const window = await chrome.windows.get(tab.windowId).catch(() => null);
+      wasMinimized = window?.state === 'minimized';
+      await chrome.windows
+        .update(
+          tab.windowId,
+          wasMinimized ? { state: 'normal', focused: true } : { focused: true },
+        )
+        .catch(() => undefined);
     }
     try {
       return await fn();
@@ -161,6 +195,11 @@ export function createCapture({ chrome }) {
       if (previous) {
         await chrome.tabs
           .update(previous.id, { active: true })
+          .catch(() => undefined);
+      }
+      if (wasMinimized) {
+        await chrome.windows
+          .update(tab.windowId, { state: 'minimized' })
           .catch(() => undefined);
       }
     }
@@ -300,7 +339,10 @@ export function createCapture({ chrome }) {
         reloaded = reload;
         await emulate(send, tabId, device, reload);
         // Lazy images load for the device's size.
-        await evaluate(`(${scrollThrough})(0)`);
+        await scrollThrough(
+          (func, args) => evaluate(`(${func})(...${JSON.stringify(args)})`),
+          0,
+        );
       }
       const before = await contentSize();
       // A device is captured at one image pixel per CSS pixel. A desktop page
@@ -362,7 +404,10 @@ export function createCapture({ chrome }) {
   }
 
   async function stitch(tabId, windowId) {
-    const startY = (await run(tabId, scrollThrough, [0])) ?? 0;
+    const startY = await scrollThrough(
+      (func, args) => run(tabId, func, args),
+      0,
+    );
     // Each screen is drawn the moment it is taken and then freed, so only
     // one is ever held: 80 full screens at once could take gigabytes.
     let canvas = null;
@@ -483,12 +528,16 @@ export function createCapture({ chrome }) {
     let reason = null;
     let debuggerSaid = null;
     try {
-      return await inFront(tab, async () => {
-        if (!device) {
-          await run(tabId, scrollThrough, []);
-        }
-        return withDebugger(tabId, { device, reload });
-      });
+      return await inFront(
+        tab,
+        async () => {
+          if (!device) {
+            await scrollThrough((func, args) => run(tabId, func, args));
+          }
+          return withDebugger(tabId, { device, reload });
+        },
+        { focusWindow: true },
+      );
     } catch (error) {
       if (error instanceof TimeoutError) {
         return { error: 'timeout' };

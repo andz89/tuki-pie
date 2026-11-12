@@ -3,9 +3,13 @@ import {
   COMMAND_MS,
   MAX_CAPTURE_HEIGHT,
   MAX_IMAGE_HEIGHT,
+  SCROLL_PAUSE_MS,
   STALE_RETRIES,
   createCapture,
   fitScale,
+  pageScrollState,
+  pageScrollTo,
+  scrollThrough,
 } from './capture.js';
 
 interface FakeTab {
@@ -17,6 +21,7 @@ interface FakeTab {
 let tabs: FakeTab[];
 let targets: { tabId: number; attached: boolean; extensionId?: string }[];
 let commands: Record<string, unknown>;
+let windowState: string;
 type Listener = (...args: never[]) => void;
 const updated = new Set<Listener>();
 const debuggerEvents = new Set<Listener>();
@@ -46,7 +51,10 @@ function fakeChrome() {
       },
     },
     runtime: { id: 'pie' },
-    windows: { update: vi.fn(async () => undefined) },
+    windows: {
+      update: vi.fn(async () => undefined),
+      get: vi.fn(async (id: number) => ({ id, state: windowState })),
+    },
     scripting: {
       // Every page script answers as a one-screen page.
       executeScript: vi.fn(async () => [
@@ -93,6 +101,7 @@ beforeEach(() => {
     { id: 2, active: false, windowId: 7 },
   ];
   targets = [];
+  windowState = 'normal';
   commands = {
     'Page.getLayoutMetrics': { cssContentSize: { width: 1280, height: 4000 } },
     'Runtime.evaluate': { result: { value: 1 } },
@@ -241,6 +250,23 @@ describe('capturing through the debugger', () => {
     chrome.debugger.sendCommand.mockRejectedValue(new Error('boom'));
     await createCapture({ chrome }).capture(1);
     expect(chrome.debugger.detach).toHaveBeenCalled();
+  });
+
+  it('brings the Chrome window to the front, so the page draws at full speed', async () => {
+    await createCapture({ chrome }).capture(1);
+    expect(chrome.windows.update).toHaveBeenCalledWith(7, { focused: true });
+  });
+
+  it('opens a minimized Chrome window for the capture, then minimizes it again', async () => {
+    windowState = 'minimized';
+    await createCapture({ chrome }).capture(1);
+    expect(chrome.windows.update).toHaveBeenNthCalledWith(1, 7, {
+      state: 'normal',
+      focused: true,
+    });
+    expect(chrome.windows.update).toHaveBeenLastCalledWith(7, {
+      state: 'minimized',
+    });
   });
 
   it('brings a background tab forward and puts yours back', async () => {
@@ -600,4 +626,48 @@ it('reports a tab that no longer exists', async () => {
 it('fitScale leaves normal pages alone', () => {
   expect(fitScale(5000)).toBe(1);
   expect(fitScale(MAX_IMAGE_HEIGHT * 2)).toBe(0.5);
+});
+
+describe('scrolling through before the picture', () => {
+  // A page three screens tall, run here instead of in a browser.
+  function fakePage() {
+    const scrolled: number[] = [];
+    const exec = vi.fn(async (func: unknown, args: unknown[]) => {
+      if (func === pageScrollState) {
+        return { y: 250, height: 2400, step: 800 };
+      }
+      if (func === pageScrollTo) {
+        scrolled.push(args[0] as number);
+        return 2400;
+      }
+      throw new Error('unexpected page script');
+    });
+    return { exec, scrolled };
+  }
+
+  it('scrolls one screen at a time, then back to where it was', async () => {
+    vi.useFakeTimers();
+    const { exec, scrolled } = fakePage();
+    const done = scrollThrough(exec);
+    await vi.runAllTimersAsync();
+    await expect(done).resolves.toBe(250);
+    expect(scrolled).toEqual([0, 800, 1600, 250]);
+  });
+
+  it('waits between screens here, not with timers in the page', async () => {
+    vi.useFakeTimers();
+    const { exec, scrolled } = fakePage();
+    void scrollThrough(exec, 0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(scrolled).toEqual([0]);
+    await vi.advanceTimersByTimeAsync(SCROLL_PAUSE_MS);
+    expect(scrolled).toEqual([0, 800]);
+    await vi.runAllTimersAsync();
+    expect(scrolled.at(-1)).toBe(0);
+  });
+
+  it('gives up quietly on a page it cannot read', async () => {
+    const exec = vi.fn(async () => null);
+    await expect(scrollThrough(exec, 0)).resolves.toBe(0);
+  });
 });
