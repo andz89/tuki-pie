@@ -94,6 +94,13 @@ Smaller ones: accent colour saves on every drag step; wheel and drag steps are o
 3. Page Info images (B3). Keep loading them in the app window behind a CSP, or have the extension fetch thumbnails in Chrome.
 4. In-app browser profile. Keep it persistent, make it in-memory, or add a clear button.
 
+## Leftovers handled 2026-11-13
+
+1. Repeating reminder between 02:00 and 03:00 drifted to 03:30 for good after the spring clock change. Fixed: `nextOccurrence` counts from the anchor, migration 008 adds `notes.remind_anchor` (59c43d6).
+2. Flaky `zip-files.test.ts` "leaves no leftovers". Real cause: cleanup ran before the write stream had opened or closed its `.part` file, so a leftover could appear. Fixed by waiting for `close` (8290312).
+3. Native modules pinned to exact versions (fc3f2a4).
+4. Vitest `isolate: false`: not safe. 34 IPC tests fail because each file mocks `electron` differently. Saves about 6 s of 23 s. Isolation stays on.
+
 ## Not covered
 
 CSS files (only searched for costly effects), most test files, `src/main/tray`, `src/shared/types.ts` drift between main and renderer, and `package-lock.json`.
