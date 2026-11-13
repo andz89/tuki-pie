@@ -141,7 +141,14 @@ export async function writeZip(files: string[], target: string): Promise<void> {
     });
     await rename(partial, target);
   } catch (error) {
-    output.destroy();
+    // Wait for the file to close: the stream may not have opened it yet,
+    // and Windows won't delete a file that is still open.
+    if (!output.closed) {
+      await new Promise((resolve) => {
+        output.once('close', resolve);
+        output.destroy();
+      });
+    }
     await rm(partial, { force: true });
     throw error;
   }
