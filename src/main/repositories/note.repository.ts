@@ -94,13 +94,38 @@ export class NoteRepository {
       .run(title, body, id);
   }
 
-  // Setting or removing a reminder also ends any snooze.
+  // Setting or removing a reminder also ends any snooze. The anchor is the
+  // time the person picked; it stays while the reminder moves on.
   setReminder(id: string, reminder: Reminder | null): void {
     this.db
       .prepare(
-        'UPDATE notes SET remind_at = ?, remind_repeat = ?, snoozed_until = NULL WHERE id = ?',
+        'UPDATE notes SET remind_at = ?, remind_anchor = ?, remind_repeat = ?, snoozed_until = NULL WHERE id = ?',
       )
-      .run(reminder?.at ?? null, reminder?.repeat ?? 'once', id);
+      .run(
+        reminder?.at ?? null,
+        reminder?.at ?? null,
+        reminder?.repeat ?? 'once',
+        id,
+      );
+  }
+
+  // A repeating reminder's next time, keeping its anchor. Ends any snooze.
+  moveReminder(id: string, at: string): void {
+    this.db
+      .prepare(
+        'UPDATE notes SET remind_at = ?, snoozed_until = NULL WHERE id = ?',
+      )
+      .run(at, id);
+  }
+
+  // The time repeats count from, or null without a reminder.
+  findReminderAnchor(id: string): string | null {
+    const row = this.db
+      .prepare('SELECT remind_anchor, remind_at FROM notes WHERE id = ?')
+      .get(id) as
+      | { remind_anchor: string | null; remind_at: string | null }
+      | undefined;
+    return row?.remind_anchor ?? row?.remind_at ?? null;
   }
 
   setSnooze(id: string, until: string | null): void {

@@ -144,11 +144,13 @@ export class NoteService {
       return;
     }
     const { at, repeat } = note.reminder;
-    const next = nextOccurrence(new Date(at), repeat, this.now());
-    this.notes.setReminder(
-      id,
-      next === null ? null : { at: next.toISOString(), repeat },
-    );
+    const anchor = this.notes.findReminderAnchor(id) ?? at;
+    const next = nextOccurrence(new Date(anchor), repeat, this.now());
+    if (next === null) {
+      this.notes.setReminder(id, null);
+    } else {
+      this.notes.moveReminder(id, next.toISOString());
+    }
     this.changed('reminder');
   }
 

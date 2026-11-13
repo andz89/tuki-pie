@@ -79,14 +79,15 @@ export function nextOccurrence(
   // Jump close to `after` first, so a reminder set long ago is still quick.
   const behind = Math.floor((after.getTime() - anchor.getTime()) / DAY_MS);
   const jumps = behind > step ? Math.floor((behind - 1) / step) : 0;
-  let candidate = addDays(anchor, jumps * step);
 
   for (let tries = 0; tries < MAX_STEPS + 7; tries += 1) {
+    // Always counted from the anchor: on the spring clock change 02:30
+    // becomes 03:30, and the next day must be back at 02:30.
+    const candidate = addDays(anchor, (jumps + tries) * step);
     const fits = repeat !== 'weekdays' || isWeekday(candidate);
     if (candidate > after && fits) {
       return candidate;
     }
-    candidate = addDays(candidate, step);
   }
   return null;
 }

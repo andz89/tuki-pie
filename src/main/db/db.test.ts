@@ -11,6 +11,7 @@ import snippets from './migrations/003_snippets.sql?raw';
 import appsApart from './migrations/004_apps_apart.sql?raw';
 import pathShortcuts from './migrations/005_path_shortcuts.sql?raw';
 import notes from './migrations/006_notes.sql?raw';
+import suggestions from './migrations/007_suggestions.sql?raw';
 
 const MIGRATIONS_BEFORE_PATHS = [init, shortcuts, snippets, appsApart];
 
@@ -61,7 +62,7 @@ describe('openDatabase', () => {
 
     const { db, isNew } = openDatabase(file);
     expect(isNew).toBe(false);
-    expect(db.pragma('user_version', { simple: true })).toBe(7);
+    expect(db.pragma('user_version', { simple: true })).toBe(8);
     expect(db.prepare('SELECT id FROM slices').all()).toEqual([{ id: 'a' }]);
     expect(db.prepare('SELECT id FROM shortcuts').all()).toEqual([]);
     db.close();
@@ -74,7 +75,7 @@ describe('openDatabase', () => {
     old.close();
 
     const { db } = openDatabase(file);
-    expect(db.pragma('user_version', { simple: true })).toBe(7);
+    expect(db.pragma('user_version', { simple: true })).toBe(8);
     expect(db.prepare('SELECT id FROM snippets').all()).toEqual([]);
     db.close();
   });
@@ -88,7 +89,7 @@ describe('suggestions migration', () => {
     old.close();
 
     const { db } = openDatabase(file);
-    expect(db.pragma('user_version', { simple: true })).toBe(7);
+    expect(db.pragma('user_version', { simple: true })).toBe(8);
     expect(db.prepare('SELECT id FROM suggestion_groups').all()).toEqual([]);
     expect(db.prepare('SELECT value FROM suggestion_values').all()).toEqual([]);
     db.close();
@@ -108,11 +109,42 @@ describe('suggestions migration', () => {
   });
 });
 
+describe('reminder anchor migration', () => {
+  it('anchors existing reminders at their saved time', () => {
+    const file = tempFile();
+    const old = new Database(file);
+    migrate(old, [
+      init,
+      shortcuts,
+      snippets,
+      appsApart,
+      pathShortcuts,
+      notes,
+      suggestions,
+    ]);
+    old
+      .prepare(
+        "INSERT INTO notes (id, title, body, remind_at, remind_repeat) VALUES ('r', '', '', '2026-03-28T01:30:00.000Z', 'daily'), ('p', '', '', NULL, 'once')",
+      )
+      .run();
+    old.close();
+
+    const { db } = openDatabase(file);
+    expect(
+      db.prepare('SELECT id, remind_anchor FROM notes ORDER BY id').all(),
+    ).toEqual([
+      { id: 'p', remind_anchor: null },
+      { id: 'r', remind_anchor: '2026-03-28T01:30:00.000Z' },
+    ]);
+    db.close();
+  });
+});
+
 describe('migrate', () => {
   it('creates the tables and records the version', () => {
     const db = new Database(':memory:');
     expect(migrate(db)).toBe(0);
-    expect(db.pragma('user_version', { simple: true })).toBe(7);
+    expect(db.pragma('user_version', { simple: true })).toBe(8);
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all()
@@ -135,7 +167,7 @@ describe('migrate', () => {
     const db = new Database(':memory:');
     migrate(db);
     db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('a', 'b');
-    expect(migrate(db)).toBe(7);
+    expect(migrate(db)).toBe(8);
     expect(db.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({
       n: 1,
     });
