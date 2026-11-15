@@ -1,4 +1,4 @@
-import { ClipboardItem, clipboard, nativeImage } from 'electron';
+import { nativeImage } from 'electron';
 import { z } from 'zod';
 import { DESKTOP, DEVICE_NAMES } from '../../shared/devices';
 import { IpcChannels } from '../../shared/ipc-channels';
@@ -14,6 +14,7 @@ import type {
   SiteTabList,
 } from '../../shared/types';
 import { SAVED_TO, saveToPictures } from '../screenshot/screenshot';
+import { copyPicture, jpegBytes } from '../screenshot/picture';
 import { pageScreenshotFileName } from '../screenshot/screenshot-geometry';
 import { UserError } from '../services/user-error';
 import type { SettingsService } from '../services/settings.service';
@@ -29,10 +30,6 @@ import { handle } from './handle';
 
 const NO_SCREENSHOT = 'Take a screenshot first.';
 const COULD_NOT_CAPTURE = 'Could not take the screenshot.';
-
-// The JPEG itself, from the base64 after the comma.
-const jpegBytes = (dataUrl: string) =>
-  Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
 
 function keptScreenshot() {
   const controller = getPageInfoController();
@@ -186,15 +183,9 @@ export function registerPageInfoIpc(settings: SettingsService): void {
     );
   });
 
-  // As PNG, which every app accepts from the clipboard.
   handle(IpcChannels.pageInfoCopyCapture, z.tuple([]), async () => {
     const { shot } = keptScreenshot();
-    const png = nativeImage.createFromDataURL(shot.dataUrl).toPNG();
-    await clipboard.write([
-      new ClipboardItem({
-        'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }),
-      }),
-    ]);
+    await copyPicture(nativeImage.createFromDataURL(shot.dataUrl));
   });
 
   handle(

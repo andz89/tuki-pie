@@ -1,14 +1,90 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, RefObject } from 'react';
 import { PieIcon, SliceIcon } from '../components/icons/SliceIcon';
 import { useHighlightSearch } from './highlight-search';
+import { useSavedSitesStore } from '../saved-sites/saved-sites.store';
 import { usePageInfoStore } from './page-info.store';
 
 const MAX_ADDRESS_LENGTH = 2048;
 
+// Show the saved list here, in place of this tab, or in its own window.
+function SavedSitesMenu({ onShowHere }: { onShowHere: () => void }) {
+  const openWindow = usePageInfoStore((state) => state.openSavedSitesWindow);
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // A click anywhere else closes it.
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const onDown = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [isOpen]);
+
+  const choose = (run: () => void) => {
+    setIsOpen(false);
+    run();
+  };
+
+  return (
+    <div
+      className="saved-menu"
+      ref={menuRef}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          setIsOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        className={
+          isOpen ? 'button button-icon button-on' : 'button button-icon'
+        }
+        aria-label="Saved sites"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        title="Saved sites"
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <SliceIcon type="saved-list" x={0} y={0} />
+      </button>
+      {isOpen && (
+        <div className="saved-menu-list" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            autoFocus
+            onClick={() => choose(onShowHere)}
+          >
+            Show here
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => choose(() => void openWindow())}
+          >
+            Open in new window
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // The address box and its buttons. What you type stays in here, so each
 // keystroke redraws this row, not the lists below.
-export function AddressBar() {
+export function AddressBar({
+  onShowSavedHere,
+}: {
+  onShowSavedHere: () => void;
+}) {
   const address = usePageInfoStore((state) => state.update.address);
   const chromeConnected = usePageInfoStore(
     (state) => state.update.chromeConnected,
@@ -20,6 +96,12 @@ export function AddressBar() {
   const refresh = usePageInfoStore((state) => state.refresh);
   const goToTab = usePageInfoStore((state) => state.goToTab);
   const toggleOnTop = usePageInfoStore((state) => state.toggleOnTop);
+  const saveSite = usePageInfoStore((state) => state.saveSite);
+  const isSaving = usePageInfoStore((state) => state.isSaving);
+  const reportUrl = usePageInfoStore((state) => state.update.report?.url);
+  const isSaved = useSavedSitesStore((state) =>
+    state.sites.some(({ address }) => address === reportUrl),
+  );
   // Keyed by the tab, so each tab starts with its own address.
   const [typed, setTyped] = useState(address ?? '');
 
@@ -87,6 +169,23 @@ export function AddressBar() {
       >
         <SliceIcon type={onTop ? 'pin' : 'pin-off'} x={0} y={0} />
       </button>
+      <button
+        type="button"
+        className={
+          isSaved ? 'button button-icon button-on' : 'button button-icon'
+        }
+        disabled={reportUrl === undefined || isSaving}
+        aria-label={isSaved ? 'Saved. Save again' : 'Save this site'}
+        title={
+          isSaved
+            ? 'Saved. Click to replace the saved results with these.'
+            : 'Save this site with its results'
+        }
+        onClick={() => void saveSite(false)}
+      >
+        <SliceIcon type={isSaved ? 'bookmark-saved' : 'bookmark'} x={0} y={0} />
+      </button>
+      <SavedSitesMenu onShowHere={onShowSavedHere} />
     </form>
   );
 }

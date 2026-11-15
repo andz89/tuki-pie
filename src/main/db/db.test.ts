@@ -62,7 +62,7 @@ describe('openDatabase', () => {
 
     const { db, isNew } = openDatabase(file);
     expect(isNew).toBe(false);
-    expect(db.pragma('user_version', { simple: true })).toBe(8);
+    expect(db.pragma('user_version', { simple: true })).toBe(9);
     expect(db.prepare('SELECT id FROM slices').all()).toEqual([{ id: 'a' }]);
     expect(db.prepare('SELECT id FROM shortcuts').all()).toEqual([]);
     db.close();
@@ -75,7 +75,7 @@ describe('openDatabase', () => {
     old.close();
 
     const { db } = openDatabase(file);
-    expect(db.pragma('user_version', { simple: true })).toBe(8);
+    expect(db.pragma('user_version', { simple: true })).toBe(9);
     expect(db.prepare('SELECT id FROM snippets').all()).toEqual([]);
     db.close();
   });
@@ -89,7 +89,7 @@ describe('suggestions migration', () => {
     old.close();
 
     const { db } = openDatabase(file);
-    expect(db.pragma('user_version', { simple: true })).toBe(8);
+    expect(db.pragma('user_version', { simple: true })).toBe(9);
     expect(db.prepare('SELECT id FROM suggestion_groups').all()).toEqual([]);
     expect(db.prepare('SELECT value FROM suggestion_values').all()).toEqual([]);
     db.close();
@@ -144,7 +144,7 @@ describe('migrate', () => {
   it('creates the tables and records the version', () => {
     const db = new Database(':memory:');
     expect(migrate(db)).toBe(0);
-    expect(db.pragma('user_version', { simple: true })).toBe(8);
+    expect(db.pragma('user_version', { simple: true })).toBe(9);
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all()
@@ -159,6 +159,7 @@ describe('migrate', () => {
         'notes',
         'suggestion_groups',
         'suggestion_values',
+        'saved_sites',
       ]),
     );
   });
@@ -167,7 +168,7 @@ describe('migrate', () => {
     const db = new Database(':memory:');
     migrate(db);
     db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('a', 'b');
-    expect(migrate(db)).toBe(8);
+    expect(migrate(db)).toBe(9);
     expect(db.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({
       n: 1,
     });

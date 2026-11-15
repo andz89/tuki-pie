@@ -8,6 +8,7 @@ import type {
   CaptureSize,
   PageInfoUpdate,
   PageScreenshot,
+  SavedSiteSummary,
   Settings,
   SiteTabList,
 } from '../../shared/types';
@@ -69,6 +70,13 @@ interface PageInfoState {
   closeTab: (id: string) => Promise<void>;
   switchTab: (id: string) => Promise<void>;
   problem: string | null;
+  // Save: the saved site it would replace, while you decide; and what it did.
+  saveQuestion: SavedSiteSummary | null;
+  saveNotice: string | null;
+  isSaving: boolean;
+  saveSite: (replace: boolean) => Promise<void>;
+  cancelSave: () => void;
+  openSavedSitesWindow: () => Promise<void>;
   settings: Settings;
   start: () => Promise<void>;
   loadSettings: () => Promise<void>;
@@ -109,6 +117,40 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
   },
   tabs: { tabs: [], activeId: '' },
   problem: null,
+  saveQuestion: null,
+  saveNotice: null,
+  isSaving: false,
+
+  saveSite: async (replace) => {
+    if (get().isSaving) {
+      return;
+    }
+    set({ saveQuestion: null, saveNotice: null, isSaving: true });
+    const result = await pageInfoBridge.saveSite(replace);
+    set({ isSaving: false });
+    if (!result.ok) {
+      set({ problem: result.error });
+      return;
+    }
+    const { status, site } = result.value;
+    set(
+      status === 'exists'
+        ? { saveQuestion: site }
+        : {
+            problem: null,
+            saveNotice:
+              status === 'saved'
+                ? 'Saved. Find it under Saved sites.'
+                : 'Replaced the saved results. Your note was kept.',
+          },
+    );
+  },
+
+  cancelSave: () => set({ saveQuestion: null }),
+
+  openSavedSitesWindow: async () => {
+    await pageInfoBridge.openSavedSitesWindow();
+  },
   settings: DEFAULT_SETTINGS,
   screenshot: NO_SCREENSHOT,
   otherScreenshots: {},
@@ -126,11 +168,14 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
     const receive = (update: PageInfoUpdate) =>
       set((state) => {
         if (update.tabId === state.update.tabId) {
+          // A new page: the picture, and a Save question about the old
+          // page, no longer apply.
+          const changed = pageChanged(state.update, update);
           return {
             update,
-            screenshot: pageChanged(state.update, update)
-              ? NO_SCREENSHOT
-              : state.screenshot,
+            screenshot: changed ? NO_SCREENSHOT : state.screenshot,
+            saveQuestion: changed ? null : state.saveQuestion,
+            saveNotice: changed ? null : state.saveNotice,
           };
         }
         // Another tab: its own screenshot comes back, this one's is kept.
@@ -138,6 +183,8 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
         return {
           update,
           problem: null,
+          saveQuestion: null,
+          saveNotice: null,
           screenshot: shown ?? NO_SCREENSHOT,
           otherScreenshots: state.update.tabId
             ? { ...others, [state.update.tabId]: state.screenshot }

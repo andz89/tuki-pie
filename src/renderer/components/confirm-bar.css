@@ -1,0 +1,27 @@
+.confirm-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.confirm-bar p {
+  flex: 1 1 260px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.confirm-bar-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.panel .button-danger {
+  background: var(--danger-surface);
+  color: var(--danger-text);
+}

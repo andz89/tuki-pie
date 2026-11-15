@@ -8,6 +8,7 @@ import { openDatabase } from '../db/db';
 import { ReminderScheduler } from '../notes/reminder-scheduler';
 import { AllowedAppRepository } from '../repositories/allowed-app.repository';
 import { NoteRepository } from '../repositories/note.repository';
+import { SavedSiteRepository } from '../repositories/saved-site.repository';
 import { SettingsRepository } from '../repositories/settings.repository';
 import { ShortcutRepository } from '../repositories/shortcut.repository';
 import { SliceRepository } from '../repositories/slice.repository';
@@ -15,6 +16,8 @@ import { SnippetRepository } from '../repositories/snippet.repository';
 import { SuggestionRepository } from '../repositories/suggestion.repository';
 import { seedFirstRun } from '../services/first-run';
 import { NoteService } from '../services/note.service';
+import { screenshotFiles } from '../services/saved-site-files';
+import { SavedSiteService } from '../services/saved-site.service';
 import { kindOfPath } from '../services/path-kind';
 import { SettingsService } from '../services/settings.service';
 import { ShortcutService } from '../services/shortcut.service';
@@ -34,7 +37,11 @@ import {
 } from '../zip/explorer-selection';
 import { ZipSelection, defaultZipDeps } from '../zip/zip-selection';
 import { sendNotesChanged } from '../windows/notes-window';
-import { setCopiedAddressRule } from '../windows/page-info-window';
+import {
+  sendSavedSitesChangedToPageInfo,
+  setCopiedAddressRule,
+} from '../windows/page-info-window';
+import { sendSavedSitesChanged } from '../windows/saved-sites-window';
 import { showReminders } from '../windows/reminder-window';
 
 // Opens the database and makes every service, wired to each other. Nothing
@@ -77,6 +84,15 @@ export function buildServices(startup: Startup) {
       reminders.refresh();
     }
     sendNotesChanged();
+  });
+  // Saved screenshots sit beside the database, one file per saved site.
+  const savedSites = new SavedSiteService(
+    new SavedSiteRepository(db),
+    screenshotFiles(path.join(app.getPath('userData'), 'saved-sites')),
+  );
+  savedSites.onChanged(() => {
+    sendSavedSitesChanged();
+    sendSavedSitesChangedToPageInfo();
   });
   const settingsRepository = new SettingsRepository(db);
   const settings = new SettingsService(settingsRepository, {
@@ -135,6 +151,7 @@ export function buildServices(startup: Startup) {
     shortcuts,
     snippets,
     notes,
+    savedSites,
     reminders,
     settings,
     pairing,

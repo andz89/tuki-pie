@@ -61,13 +61,16 @@ describe('assertSender', () => {
 });
 
 // Each preload's invoke calls, so the rules can't drift from the bridges.
-const PRELOAD_ROLES: Record<string, WindowRole> = {
-  'preload.ts': 'pie',
-  'panel-preload.ts': 'panel',
-  'notes-preload.ts': 'notes',
-  'page-info-preload.ts': 'page-info',
-  'reminder-preload.ts': 'reminder',
-  'screenshot-preload.ts': 'screenshot',
+// A shared bridge file serves every window that loads it.
+const PRELOAD_ROLES: Record<string, WindowRole[]> = {
+  'preload.ts': ['pie'],
+  'panel-preload.ts': ['panel'],
+  'notes-preload.ts': ['notes'],
+  'page-info-preload.ts': ['page-info'],
+  'saved-sites-preload.ts': ['saved-sites'],
+  'saved-sites-api.ts': ['page-info', 'saved-sites'],
+  'reminder-preload.ts': ['reminder'],
+  'screenshot-preload.ts': ['screenshot'],
 };
 
 function invokedChannels(file: string): string[] {
@@ -89,18 +92,22 @@ function invokedChannels(file: string): string[] {
 describe('the channel rules', () => {
   it.each(Object.entries(PRELOAD_ROLES))(
     'let %s use every channel its bridge calls',
-    (file, role) => {
+    (file, roles) => {
       for (const channel of invokedChannels(file)) {
-        expect(CHANNEL_ROLES[channel], channel).toContain(role);
+        for (const role of roles) {
+          expect(CHANNEL_ROLES[channel], channel).toContain(role);
+        }
       }
     },
   );
 
   it('give no window a channel its bridge does not call', () => {
     const used = new Map<string, Set<WindowRole>>();
-    for (const [file, role] of Object.entries(PRELOAD_ROLES)) {
+    for (const [file, roles] of Object.entries(PRELOAD_ROLES)) {
       for (const channel of invokedChannels(file)) {
-        used.set(channel, (used.get(channel) ?? new Set()).add(role));
+        const users = used.get(channel) ?? new Set();
+        roles.forEach((role) => users.add(role));
+        used.set(channel, users);
       }
     }
     for (const [channel, roles] of Object.entries(CHANNEL_ROLES)) {

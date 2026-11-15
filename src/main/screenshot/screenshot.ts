@@ -1,17 +1,10 @@
-import {
-  ClipboardItem,
-  Notification,
-  app,
-  clipboard,
-  desktopCapturer,
-  screen,
-  shell,
-} from 'electron';
+import { Notification, app, desktopCapturer, screen, shell } from 'electron';
 import type { Display, NativeImage } from 'electron';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { ScreenshotMode } from '../../shared/types';
 import { UserError } from '../services/user-error';
+import { copyPicture } from './picture';
 import {
   hidePieWindow,
   isPieWindowOpen,
@@ -71,13 +64,8 @@ export async function saveToPictures(
 }
 
 async function saveScreenshot(image: NativeImage): Promise<void> {
-  const png = image.toPNG();
-  await clipboard.write([
-    new ClipboardItem({
-      'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }),
-    }),
-  ]);
-  await saveToPictures(png, screenshotFileName(new Date()), {
+  await copyPicture(image);
+  await saveToPictures(image.toPNG(), screenshotFileName(new Date()), {
     title: 'Screenshot copied',
     body: `Also saved to ${SAVED_TO}. Click to show it.`,
   });

@@ -23,6 +23,7 @@ describe('the security policy', () => {
         'page-info.html',
         'reminder.html',
         'screenshot.html',
+        'saved-sites.html',
       ]),
     );
   });

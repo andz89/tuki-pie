@@ -28,10 +28,31 @@ export type PieIconName =
   | 'close'
   | 'chevron'
   | 'search'
+  | 'bookmark'
+  | 'bookmark-saved'
+  | 'saved-list'
   | 'zip';
 
 const ICON_SHAPES: Record<PieIconName, ReactNode> = {
   chevron: <path d="m9 18 6-6-6-6" />,
+  bookmark: <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />,
+  // Filled, with a tick cut out: this address is saved.
+  'bookmark-saved': (
+    <>
+      <path
+        d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+        fill="currentColor"
+      />
+      <path d="m9 10 2 2 4-4" stroke="var(--page, #15181c)" />
+    </>
+  ),
+  // A list with a bookmark beside it.
+  'saved-list': (
+    <>
+      <path d="M3 6h10M3 12h10M3 18h7" />
+      <path d="M21 17l-2.5-1.5L16 17V7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1z" />
+    </>
+  ),
   // A folder with a zipper down the middle.
   zip: (
     <>

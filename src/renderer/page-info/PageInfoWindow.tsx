@@ -7,23 +7,24 @@ import {
   useState,
 } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
-import { CommentsCard } from './CommentsCard';
-import { DetailsCard } from './DetailsCard';
 import { readLinkFilter } from '../../shared/link-rules';
-import { IssuesCard } from './IssuesCard';
 import { LinksTab } from './LinksTab';
 import { PageImages } from './PageImages';
+import { PageInfoCards } from './PageInfoCards';
 import { PageDashboard } from './PageDashboard';
 import type { PageInfoTab } from './PageDashboard';
 import { PageScreenshot } from './PageScreenshot';
 import { includedLinks, shownLinks, uniqueLinks } from './page-links';
 import type { LinkChoices } from './page-links';
 import { AddressBar, HighlightBox } from './PageInfoBar';
-import { SeoCard } from './SeoCard';
 import { SiteTabs } from './SiteTabs';
+import { ConfirmBar } from '../components/ConfirmBar';
+import { SavedSites } from '../saved-sites/SavedSites';
+import { useSavedSitesStore } from '../saved-sites/saved-sites.store';
+import { savedDate } from '../saved-sites/saved-view';
+import { hostOf } from './page-dashboard';
 import { SocialCard } from './SocialCard';
-import { SortableCards } from './SortableCards';
-import { TrackingCard } from './TrackingCard';
+import { pageInfoBridge } from './page-info-bridge';
 import { usePageInfoStore } from './page-info.store';
 
 const NO_CHOICES: LinkChoices = new Map();
@@ -172,6 +173,33 @@ export function PageInfoWindow() {
     }
   }, [tabId, reportId, setChoices]);
 
+  // The saved list can take this tab's place. Its list also tells Save
+  // whether this address is saved already.
+  const startSaved = useSavedSitesStore((state) => state.start);
+  useEffect(() => void startSaved(), [startSaved]);
+  const [view, setView] = useState<'tabs' | 'saved'>('tabs');
+  // A saved site opened live from the other window shows the tabs again.
+  useEffect(() => pageInfoBridge.onShowTabs(() => setView('tabs')), []);
+  const [askShowHere, setAskShowHere] = useState(false);
+  const closeTab = usePageInfoStore((state) => state.closeTab);
+  const saveQuestion = usePageInfoStore((state) => state.saveQuestion);
+  const saveNotice = usePageInfoStore((state) => state.saveNotice);
+  const saveSite = usePageInfoStore((state) => state.saveSite);
+  const cancelSave = usePageInfoStore((state) => state.cancelSave);
+  const showSavedHere = () => {
+    setAskShowHere(false);
+    void closeTab(tabId);
+    setView('saved');
+  };
+  // Asked first when the tab has something to lose.
+  const askToShowSavedHere = () => {
+    if (address === null && report === null) {
+      showSavedHere();
+    } else {
+      setAskShowHere(true);
+    }
+  };
+
   // A closed tab's inner tab and ticks go with it.
   const openTabs = usePageInfoStore((state) => state.tabs.tabs);
   useEffect(() => {
@@ -184,6 +212,17 @@ export function PageInfoWindow() {
     shownPage.current = onlyOpen(shownPage.current, open);
   }, [openTabs]);
 
+  if (view === 'saved') {
+    return (
+      <div
+        className="panel page-info page-info-saved"
+        data-theme={settings.theme}
+      >
+        <SavedSites onBack={() => setView('tabs')} />
+      </div>
+    );
+  }
+
   return (
     <div
       className="panel page-info"
@@ -192,7 +231,28 @@ export function PageInfoWindow() {
     >
       <div className="page-info-bar">
         <SiteTabs />
-        <AddressBar key={tabId} />
+        <AddressBar key={tabId} onShowSavedHere={askToShowSavedHere} />
+        {askShowHere && (
+          <ConfirmBar
+            message={`Show saved sites here? This closes the current tab (${hostOf(address ?? '')}) and its results.`}
+            confirm="Show here"
+            onConfirm={showSavedHere}
+            onCancel={() => setAskShowHere(false)}
+          />
+        )}
+        {saveQuestion && (
+          <ConfirmBar
+            message={`${hostOf(saveQuestion.address)} is already saved (${savedDate(saveQuestion.savedAt, true)}). Replace the saved results? Your note is kept.`}
+            confirm="Replace"
+            onConfirm={() => void saveSite(true)}
+            onCancel={cancelSave}
+          />
+        )}
+        {saveNotice && (
+          <p className="page-info-notice" role="status">
+            {saveNotice}
+          </p>
+        )}
         <HighlightBox resultsRef={resultsRef} />
         <div
           className="info-tabs page-info-tabs"
@@ -254,20 +314,14 @@ export function PageInfoWindow() {
             className="page-info-panel"
             hidden={tab !== 'info'}
           >
-            <SortableCards
-              cards={{
-                issues: <IssuesCard issues={report.issues} />,
-                details: <DetailsCard meta={report.meta} />,
-                seo: <SeoCard seo={report.seo} />,
-                tracking: <TrackingCard tracking={report.tracking} />,
-                social: (
-                  <SocialCard
-                    images={report.featuredImages}
-                    pageUrl={report.url}
-                  />
-                ),
-                comments: <CommentsCard hyvorTalk={report.hyvorTalk} />,
-              }}
+            <PageInfoCards
+              report={report}
+              social={
+                <SocialCard
+                  images={report.featuredImages}
+                  pageUrl={report.url}
+                />
+              }
             />
           </div>
         )}

@@ -34,6 +34,7 @@ export default defineConfig({
         pageInfo: path.join(root, 'page-info.html'),
         screenshot: path.join(root, 'screenshot.html'),
         notes: path.join(root, 'notes.html'),
+        savedSites: path.join(root, 'saved-sites.html'),
         reminder: path.join(root, 'reminder.html'),
       },
     },

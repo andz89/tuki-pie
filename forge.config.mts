@@ -96,6 +96,11 @@ const config: ForgeConfig = {
           target: 'preload',
         },
         {
+          entry: 'src/preload/saved-sites-preload.ts',
+          config: 'vite.preload.config.mts',
+          target: 'preload',
+        },
+        {
           entry: 'src/preload/notes-preload.ts',
           config: 'vite.preload.config.mts',
           target: 'preload',

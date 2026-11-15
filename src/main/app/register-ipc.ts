@@ -4,6 +4,7 @@ import { registerChromeIpc } from '../ipc/chrome.ipc';
 import { registerNotesIpc, registerReminderIpc } from '../ipc/notes.ipc';
 import { registerPageInfoIpc } from '../ipc/page-info.ipc';
 import { registerPanelIpc } from '../ipc/panel.ipc';
+import { registerSavedSitesIpc } from '../ipc/saved-sites.ipc';
 import { registerScreenshotIpc } from '../ipc/screenshot.ipc';
 import { registerSettingsIpc } from '../ipc/settings.ipc';
 import { registerShortcutIpc } from '../ipc/shortcuts.ipc';
@@ -21,6 +22,7 @@ export function registerIpc({
   snippets,
   suggestions,
   notes,
+  savedSites,
   settings,
   zipSelection,
   slices,
@@ -40,6 +42,7 @@ export function registerIpc({
   registerNotesIpc(notes);
   registerReminderIpc(notes);
   registerPageInfoIpc(settings);
+  registerSavedSitesIpc(savedSites);
   registerScreenshotIpc();
   registerZipIpc(zipSelection);
   registerSettingsIpc(settings);

@@ -7,6 +7,7 @@ import '../panel/panel.css';
 import { PageInfoWindow } from './PageInfoWindow';
 import './page-info.css';
 import './page-dashboard.css';
+import '../saved-sites/saved-sites.css';
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>

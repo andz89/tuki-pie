@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IpcChannels } from '../shared/ipc-channels';
+import { savedSitesBridge } from './saved-sites-api';
 import type {
   PageInfoBridge,
   PageInfoUpdate,
@@ -33,10 +34,20 @@ const bridge: PageInfoBridge = {
       ipcRenderer.removeListener(IpcChannels.pageInfoUpdate, handler);
   },
   getTabs: () => ipcRenderer.invoke(IpcChannels.pageInfoGetTabs),
+  saveSite: (replace) =>
+    ipcRenderer.invoke(IpcChannels.savedSitesSave, replace),
+  openSavedSitesWindow: () =>
+    ipcRenderer.invoke(IpcChannels.savedSitesOpenWindow),
   newTab: (address, ticked) =>
     ipcRenderer.invoke(IpcChannels.pageInfoNewTab, address, ticked ?? false),
   closeTab: (id) => ipcRenderer.invoke(IpcChannels.pageInfoCloseTab, id),
   switchTab: (id) => ipcRenderer.invoke(IpcChannels.pageInfoSwitchTab, id),
+  onShowTabs: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(IpcChannels.pageInfoShowTabs, handler);
+    return () =>
+      ipcRenderer.removeListener(IpcChannels.pageInfoShowTabs, handler);
+  },
   onTabs: (listener) => {
     const handler = (_event: unknown, tabs: SiteTabList) => listener(tabs);
     ipcRenderer.on(IpcChannels.pageInfoTabs, handler);
@@ -48,3 +59,5 @@ const bridge: PageInfoBridge = {
 };
 
 contextBridge.exposeInMainWorld('pageInfo', bridge);
+// The saved list can be shown here in place of the tabs.
+contextBridge.exposeInMainWorld('savedSites', savedSitesBridge);

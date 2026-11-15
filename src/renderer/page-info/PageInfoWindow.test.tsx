@@ -16,15 +16,37 @@ vi.mock('./page-info-bridge', () => ({
     onUpdate: vi.fn(() => () => undefined),
     getTabs: vi.fn(async () => ({ ok: false, error: 'not in a test' })),
     onTabs: vi.fn(() => () => undefined),
+    onShowTabs: vi.fn(() => () => undefined),
     newTab: vi.fn(async () => ({ ok: true, value: undefined })),
     closeTab: vi.fn(async () => ({ ok: true, value: undefined })),
     switchTab: vi.fn(async () => ({ ok: true, value: undefined })),
     openLinks: vi.fn(async () => ({ ok: true, value: true })),
+    saveSite: vi.fn(async () => ({
+      ok: true,
+      value: {
+        status: 'exists',
+        site: {
+          id: 's1',
+          address: 'https://example.com/',
+          title: 'Hi',
+          note: '',
+          hasScreenshot: false,
+          savedAt: '2026-11-15T10:00:00.000Z',
+        },
+      },
+    })),
+    openSavedSitesWindow: vi.fn(async () => ({ ok: true, value: undefined })),
     settings: { get: vi.fn(async () => ({ ok: false, error: 'no' })) },
     image: vi.fn(async () => ({
       ok: true,
       value: { dataUrl: 'data:image/webp;base64,AA', width: 1, height: 1 },
     })),
+  },
+}));
+vi.mock('../saved-sites/saved-sites-bridge', () => ({
+  savedSitesBridge: {
+    list: vi.fn(async () => ({ ok: true, value: [] })),
+    onChanged: vi.fn(() => () => undefined),
   },
 }));
 vi.mock('./page-links', async (original) => {
@@ -252,5 +274,47 @@ describe('PageInfoWindow', () => {
     expect(selected()).toBe('Dashboard');
     act(() => usePageInfoStore.setState({ update: first }));
     expect(selected()).toMatch(/^Links/);
+  });
+
+  const button = (label: string) =>
+    container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${label}"]`,
+    )!;
+  const buttonWithText = (text: string) =>
+    [...container.querySelectorAll('button')].find(
+      (each) => each.textContent === text,
+    )!;
+
+  it('asks before replacing a saved site, and replaces on Replace', async () => {
+    await showReport();
+    await act(async () => button('Save this site').click());
+    expect(pageInfoBridge.saveSite).toHaveBeenCalledWith(false);
+    expect(container.querySelector('.confirm-bar')?.textContent).toContain(
+      'example.com is already saved',
+    );
+    await act(async () => buttonWithText('Replace').click());
+    expect(pageInfoBridge.saveSite).toHaveBeenLastCalledWith(true);
+  });
+
+  it('warns that Show here closes the current tab', async () => {
+    await showReport();
+    act(() => button('Saved sites').click());
+    act(() => buttonWithText('Show here').click());
+    expect(container.querySelector('.confirm-bar')?.textContent).toContain(
+      'This closes the current tab (example.com)',
+    );
+    expect(pageInfoBridge.closeTab).not.toHaveBeenCalled();
+    await act(async () => buttonWithText('Show here').click());
+    expect(pageInfoBridge.closeTab).toHaveBeenCalledWith('1');
+    expect(container.querySelector('.saved-sites')).not.toBeNull();
+    act(() => buttonWithText(' Back to Page Info').click());
+    expect(container.querySelector('.saved-sites')).toBeNull();
+  });
+
+  it('opens the saved list in a new window', async () => {
+    await showReport();
+    act(() => button('Saved sites').click());
+    await act(async () => buttonWithText('Open in new window').click());
+    expect(pageInfoBridge.openSavedSitesWindow).toHaveBeenCalledOnce();
   });
 });

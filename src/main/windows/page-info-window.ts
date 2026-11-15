@@ -79,6 +79,31 @@ async function activeChromeTab(): Promise<string | null> {
   return activeTabAddress(answer);
 }
 
+// A saved site checked live: in the active tab when it is still empty,
+// otherwise in a new tab.
+export function checkInPageInfo(address: string): void {
+  showOrCreateWindow();
+  const active = tabs?.active();
+  if (!tabs || !active) {
+    return;
+  }
+  // The window may be showing the saved list in place of its tabs.
+  pageInfoWindow?.webContents.send(IpcChannels.pageInfoShowTabs);
+  const { address: shown, status } = active.state();
+  if (shown === null && status === 'idle') {
+    active.check(address);
+  } else {
+    tabs.add(address);
+  }
+}
+
+// A saved site changed: the saved list shown in this window catches up.
+export function sendSavedSitesChangedToPageInfo(): void {
+  if (pageInfoWindow && !pageInfoWindow.isDestroyed()) {
+    pageInfoWindow.webContents.send(IpcChannels.savedSitesChanged);
+  }
+}
+
 // Whether a copied address may be checked without a click on it. Set from
 // main.ts with the Links filter; nothing until then.
 let isCopiedSafe: (address: string) => boolean = () => false;

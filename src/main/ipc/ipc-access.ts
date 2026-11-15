@@ -7,6 +7,7 @@ export type WindowRole =
   | 'panel'
   | 'notes'
   | 'page-info'
+  | 'saved-sites'
   | 'reminder'
   | 'screenshot';
 
@@ -27,8 +28,12 @@ const SETTINGS_READERS: WindowRole[] = [
   'panel',
   'notes',
   'page-info',
+  'saved-sites',
   'reminder',
 ];
+
+// Page Info can show the saved list in place of its tabs.
+const SAVED_SITES_VIEWS: WindowRole[] = ['page-info', 'saved-sites'];
 
 // Which windows may send each message. Kept to what each preload's bridge
 // calls (ipc-access.test.ts checks that), so a script that got into one
@@ -99,6 +104,17 @@ export const CHANNEL_ROLES: Readonly<Record<string, readonly WindowRole[]>> = {
   [C.pageInfoSaveCapture]: ['page-info'],
   [C.pageInfoCopyCapture]: ['page-info'],
   [C.pageInfoImage]: ['page-info'],
+
+  [C.savedSitesList]: SAVED_SITES_VIEWS,
+  [C.savedSitesGet]: SAVED_SITES_VIEWS,
+  [C.savedSitesSetNote]: SAVED_SITES_VIEWS,
+  [C.savedSitesRemove]: SAVED_SITES_VIEWS,
+  [C.savedSitesOpenLive]: SAVED_SITES_VIEWS,
+  [C.savedSitesScreenshot]: SAVED_SITES_VIEWS,
+  [C.savedSitesSaveScreenshot]: SAVED_SITES_VIEWS,
+  [C.savedSitesCopyScreenshot]: SAVED_SITES_VIEWS,
+  [C.savedSitesSave]: ['page-info'],
+  [C.savedSitesOpenWindow]: ['page-info'],
 
   [C.reminderList]: ['reminder'],
   [C.reminderOpen]: ['reminder'],

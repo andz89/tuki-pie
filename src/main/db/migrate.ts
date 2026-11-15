@@ -7,6 +7,7 @@ import pathShortcuts from './migrations/005_path_shortcuts.sql?raw';
 import notes from './migrations/006_notes.sql?raw';
 import suggestions from './migrations/007_suggestions.sql?raw';
 import reminderAnchor from './migrations/008_reminder_anchor.sql?raw';
+import savedSites from './migrations/009_saved_sites.sql?raw';
 
 const MIGRATIONS = [
   init,
@@ -17,6 +18,7 @@ const MIGRATIONS = [
   notes,
   suggestions,
   reminderAnchor,
+  savedSites,
 ];
 
 // Runs each migration not yet applied, and returns the version it started from.

@@ -8,6 +8,11 @@ import type {
 import type { LinkFilter } from './link-rules';
 import type { PageData, PageReport } from './schemas/page-info.schema';
 import type {
+  SaveSiteResult,
+  SavedSite,
+  SavedSiteSummary,
+} from './schemas/saved-site.schema';
+import type {
   PieLookUpdate,
   Settings,
   SettingsUpdate,
@@ -46,6 +51,7 @@ export type {
   SuggestionValue,
 };
 export type { PageData, PageReport };
+export type { SaveSiteResult, SavedSite, SavedSiteSummary };
 export type { DueReminder, NewNote, Note, NoteEdit, Reminder };
 export type {
   NewShortcut,
@@ -233,6 +239,30 @@ export interface PageInfoBridge {
   closeTab(id: string): Promise<Result>;
   switchTab(id: string): Promise<Result>;
   onTabs(listener: (tabs: SiteTabList) => void): () => void;
+  // Saves the active tab's site. replace: overwrite a saved address.
+  saveSite(replace: boolean): Promise<Result<SaveSiteResult>>;
+  openSavedSitesWindow(): Promise<Result>;
+  // Main started a check in a tab: the tabs must be in view for it.
+  onShowTabs(listener: () => void): () => void;
+  settings: {
+    get(): Promise<Result<Settings>>;
+  };
+}
+
+// Saved sites, available as `window.savedSites` in the Saved sites window
+// and in the Page Info window, which can show the same list in place.
+export interface SavedSitesBridge {
+  list(): Promise<Result<SavedSiteSummary[]>>;
+  get(id: string): Promise<Result<SavedSite>>;
+  setNote(id: string, note: string): Promise<Result>;
+  remove(id: string): Promise<Result>;
+  // Checks the saved address live, in a new tab of the Page Info window.
+  openLive(id: string): Promise<Result>;
+  // The saved picture as a data address, or null when none was saved.
+  screenshot(id: string): Promise<Result<string | null>>;
+  saveScreenshot(id: string): Promise<Result>;
+  copyScreenshot(id: string): Promise<Result>;
+  onChanged(listener: () => void): () => void;
   settings: {
     get(): Promise<Result<Settings>>;
   };
