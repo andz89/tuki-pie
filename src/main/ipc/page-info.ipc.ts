@@ -8,7 +8,11 @@ import {
   MAX_PAGE_URL,
 } from '../../shared/schemas/page-info.schema';
 import { MAX_OPEN_LINKS, MAX_SECTION_SELECTOR } from '../../shared/types';
-import type { PageInfoUpdate, PageScreenshot } from '../../shared/types';
+import type {
+  PageInfoUpdate,
+  PageScreenshot,
+  SiteTabList,
+} from '../../shared/types';
 import { SAVED_TO, saveToPictures } from '../screenshot/screenshot';
 import { pageScreenshotFileName } from '../screenshot/screenshot-geometry';
 import { UserError } from '../services/user-error';
@@ -16,11 +20,11 @@ import type { SettingsService } from '../services/settings.service';
 import {
   focusPageInfoWindow,
   getPageInfoController,
+  getPageInfoImages,
+  getPageInfoTabs,
   goToChromeTab,
   setPageInfoOnTop,
 } from '../windows/page-info-window';
-import { getChromeBridge } from '../chrome-bridge/chrome-connection';
-import { PageImages } from '../page-info/page-images';
 import { handle } from './handle';
 
 const NO_SCREENSHOT = 'Take a screenshot first.';
@@ -40,6 +44,7 @@ function keptScreenshot() {
 }
 
 const NOTHING_LOADED: PageInfoUpdate = {
+  tabId: '',
   status: 'idle',
   address: null,
   report: null,
@@ -48,6 +53,11 @@ const NOTHING_LOADED: PageInfoUpdate = {
   chromeConnected: false,
   reportId: 0,
 };
+
+const FILTERED_LINK =
+  'Link filters keep this link from opening. Change them in Link filters.';
+const NO_TABS: SiteTabList = { tabs: [], activeId: '' };
+const TabId = z.string().max(20);
 
 // The dashboard tile shows the top of the page, 150 px tall. A full-page
 // picture can be tens of megabytes, so it gets a small JPEG of just that.
@@ -68,32 +78,18 @@ function dashboardThumb(image: Electron.NativeImage): string {
 }
 
 export function registerPageInfoIpc(settings: SettingsService): void {
-  const images = new PageImages({
-    request: (action, args, timeoutMs) => {
-      const bridge = getChromeBridge();
-      return bridge
-        ? bridge.request(action, args, timeoutMs)
-        : Promise.reject(new Error('not-connected'));
-    },
-    currentPage: () => {
-      const update = getPageInfoController()?.state();
-      const report = update?.report;
-      return update && report
-        ? {
-            reportId: update.reportId,
-            url: report.url,
-            images: report.images,
-            featuredImages: report.featuredImages.map(({ url }) => url),
-          }
-        : null;
-    },
-  });
+  // The saved Link filters decide what may open, whatever the window asks
+  // for. A link marked as carrying a token opens only when the user ticked it.
+  const openable = (urls: string[], ticked: Set<string>) => {
+    const filter = readLinkFilter(settings.get().linkFilter);
+    return urls.filter((url) => canOpen(url, filter, ticked.has(url)));
+  };
 
   // Page images come only from Chrome; the window never loads them itself.
   handle(
     IpcChannels.pageInfoImage,
     z.tuple([z.string().max(MAX_PAGE_URL), z.enum(['thumb', 'full'])]),
-    (url, size) => images.get(url, size),
+    (url, size) => getPageInfoImages()?.get(url, size) ?? null,
   );
 
   handle(
@@ -109,6 +105,36 @@ export function registerPageInfoIpc(settings: SettingsService): void {
   );
 
   handle(IpcChannels.pageInfoGoToTab, z.tuple([]), () => goToChromeTab());
+
+  handle(
+    IpcChannels.pageInfoGetTabs,
+    z.tuple([]),
+    (): SiteTabList => getPageInfoTabs()?.list() ?? NO_TABS,
+  );
+
+  // A link opened in a new tab is checked there at once. As with Open, the
+  // saved Link filters decide whether it may be loaded.
+  handle(
+    IpcChannels.pageInfoNewTab,
+    z.tuple([z.string().max(MAX_PAGE_URL).nullable(), z.boolean()]),
+    (address, ticked) => {
+      if (address !== null) {
+        const allowed = openable([address], new Set(ticked ? [address] : []));
+        if (allowed.length === 0) {
+          throw new UserError(FILTERED_LINK);
+        }
+      }
+      getPageInfoTabs()?.add(address ?? undefined);
+    },
+  );
+
+  handle(IpcChannels.pageInfoCloseTab, z.tuple([TabId]), (id) =>
+    getPageInfoTabs()?.close(id),
+  );
+
+  handle(IpcChannels.pageInfoSwitchTab, z.tuple([TabId]), (id) =>
+    getPageInfoTabs()?.switchTo(id),
+  );
 
   handle(
     IpcChannels.pageInfoCapture,
@@ -187,16 +213,9 @@ export function registerPageInfoIpc(settings: SettingsService): void {
       z.array(z.string().max(MAX_PAGE_URL)).max(MAX_OPEN_LINKS),
       z.array(z.string().max(MAX_PAGE_URL)).max(MAX_OPEN_LINKS),
     ]),
-    (urls, ticked) => {
-      // The saved Link filters decide, whatever the window asks for. A link
-      // marked as carrying a token opens only when the user ticked it.
-      const filter = readLinkFilter(settings.get().linkFilter);
-      const tickedSet = new Set(ticked);
-      const allowed = urls.filter((url) =>
-        canOpen(url, filter, tickedSet.has(url)),
-      );
-      return getPageInfoController()?.openLinks(allowed) ?? false;
-    },
+    (urls, ticked) =>
+      getPageInfoController()?.openLinks(openable(urls, new Set(ticked))) ??
+      false,
   );
 
   handle(IpcChannels.pageInfoSetLinkFilter, z.tuple([LinkFilter]), (filter) =>

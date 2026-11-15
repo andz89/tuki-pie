@@ -9,6 +9,7 @@ import type {
   PageInfoUpdate,
   PageScreenshot,
   Settings,
+  SiteTabList,
 } from '../../shared/types';
 import { blobUrlFromDataUrl } from './blob-url';
 import { pageInfoBridge } from './page-info-bridge';
@@ -42,12 +43,31 @@ export const NO_SCREENSHOT: ScreenshotState = {
   notice: null,
 };
 
-// A new check, a refresh, or another page: the picture no longer matches.
+// A new check, a refresh, or another page in the same tab: the picture no
+// longer matches.
 const pageChanged = (before: PageInfoUpdate, after: PageInfoUpdate) =>
   after.report === null || after.address !== before.address;
 
+// Every picture the window holds, so the ones no longer held give their
+// memory back.
+const imageUrls = (state: {
+  screenshot: ScreenshotState;
+  otherScreenshots: Record<string, ScreenshotState>;
+}) =>
+  new Set(
+    [state.screenshot, ...Object.values(state.otherScreenshots)].flatMap(
+      ({ shot }) => (shot ? [shot.imageUrl] : []),
+    ),
+  );
+
 interface PageInfoState {
+  // The active tab's state.
   update: PageInfoUpdate;
+  tabs: SiteTabList;
+  // ticked: the address is marked as carrying a token, and you ticked it.
+  newTab: (address: string | null, ticked?: boolean) => Promise<void>;
+  closeTab: (id: string) => Promise<void>;
+  switchTab: (id: string) => Promise<void>;
   problem: string | null;
   settings: Settings;
   start: () => Promise<void>;
@@ -58,7 +78,9 @@ interface PageInfoState {
   goToTab: () => Promise<void>;
   toggleOnTop: () => Promise<void>;
   setLinkFilter: (filter: LinkFilter) => Promise<void>;
+  // The active tab's screenshot, and the other tabs' by tab id.
   screenshot: ScreenshotState;
+  otherScreenshots: Record<string, ScreenshotState>;
   // Kept across pages, like the choice in a menu. section is the text as
   // typed; sectionKind says how it is read.
   captureSize: CaptureSize;
@@ -72,9 +94,11 @@ interface PageInfoState {
 
 // One listener at a time, even when React runs the start-up effect twice.
 let stopListening: (() => void) | undefined;
+let stopListeningToTabs: (() => void) | undefined;
 
 export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
   update: {
+    tabId: '',
     status: 'idle',
     address: null,
     report: null,
@@ -83,9 +107,11 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
     chromeConnected: false,
     reportId: 0,
   },
+  tabs: { tabs: [], activeId: '' },
   problem: null,
   settings: DEFAULT_SETTINGS,
   screenshot: NO_SCREENSHOT,
+  otherScreenshots: {},
   captureSize: { device: DESKTOP, reload: false, section: '' },
 
   setCaptureSize: (changes) =>
@@ -96,18 +122,62 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
 
   start: async () => {
     stopListening?.();
+    stopListeningToTabs?.();
     const receive = (update: PageInfoUpdate) =>
-      set((state) => ({
-        update,
-        screenshot: pageChanged(state.update, update)
-          ? NO_SCREENSHOT
-          : state.screenshot,
-      }));
+      set((state) => {
+        if (update.tabId === state.update.tabId) {
+          return {
+            update,
+            screenshot: pageChanged(state.update, update)
+              ? NO_SCREENSHOT
+              : state.screenshot,
+          };
+        }
+        // Another tab: its own screenshot comes back, this one's is kept.
+        const { [update.tabId]: shown, ...others } = state.otherScreenshots;
+        return {
+          update,
+          problem: null,
+          screenshot: shown ?? NO_SCREENSHOT,
+          otherScreenshots: state.update.tabId
+            ? { ...others, [state.update.tabId]: state.screenshot }
+            : others,
+        };
+      });
+    const receiveTabs = (tabs: SiteTabList) =>
+      set((state) => {
+        // A closed tab's screenshot goes with it.
+        const open = new Set(tabs.tabs.map(({ id }) => id));
+        const otherScreenshots = Object.fromEntries(
+          Object.entries(state.otherScreenshots).filter(([id]) => open.has(id)),
+        );
+        return { tabs, otherScreenshots };
+      });
     stopListening = pageInfoBridge.onUpdate(receive);
-    const result = await pageInfoBridge.getState();
+    stopListeningToTabs = pageInfoBridge.onTabs(receiveTabs);
+    const [result, tabs] = await Promise.all([
+      pageInfoBridge.getState(),
+      pageInfoBridge.getTabs(),
+    ]);
     if (result.ok) {
       receive(result.value);
     }
+    if (tabs.ok) {
+      receiveTabs(tabs.value);
+    }
+  },
+
+  newTab: async (address, ticked = false) => {
+    const result = await pageInfoBridge.newTab(address, ticked);
+    set({ problem: result.ok ? null : result.error });
+  },
+
+  closeTab: async (id) => {
+    await pageInfoBridge.closeTab(id);
+  },
+
+  switchTab: async (id) => {
+    await pageInfoBridge.switchTab(id);
   },
 
   loadSettings: async () => {
@@ -177,28 +247,36 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
         notice: null,
       },
     });
+    const tabId = get().update.tabId;
     const result = await pageInfoBridge.capture({
       ...captureSize,
       section: section.selector,
     });
     // Read again: the page may have changed during the capture, and its old
-    // picture must not come back.
-    const now = get().screenshot;
-    set({
-      screenshot: result.ok
-        ? {
-            status: 'done',
-            shot: shownScreenshot(result.value),
-            problem: null,
-            notice: null,
-          }
-        : {
-            ...now,
-            status: now.shot ? 'done' : 'none',
-            problem: result.error,
-            notice: null,
-          },
-    });
+    // picture must not come back. You may also have moved to another tab.
+    const isShown = get().update.tabId === tabId;
+    const now = isShown ? get().screenshot : get().otherScreenshots[tabId];
+    if (!now) {
+      return; // The tab was closed.
+    }
+    const done: ScreenshotState = result.ok
+      ? {
+          status: 'done',
+          shot: shownScreenshot(result.value),
+          problem: null,
+          notice: null,
+        }
+      : {
+          ...now,
+          status: now.shot ? 'done' : 'none',
+          problem: result.error,
+          notice: null,
+        };
+    set(
+      isShown
+        ? { screenshot: done }
+        : { otherScreenshots: { ...get().otherScreenshots, [tabId]: done } },
+    );
   },
 
   saveScreenshot: async () => {
@@ -224,10 +302,18 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
   },
 }));
 
-// A picture the window no longer shows gives its memory back.
+// A picture the window no longer holds gives its memory back.
 usePageInfoStore.subscribe((state, previous) => {
-  const old = previous.screenshot.shot?.imageUrl;
-  if (old && old !== state.screenshot.shot?.imageUrl) {
-    URL.revokeObjectURL(old);
+  if (
+    state.screenshot === previous.screenshot &&
+    state.otherScreenshots === previous.otherScreenshots
+  ) {
+    return;
+  }
+  const kept = imageUrls(state);
+  for (const url of imageUrls(previous)) {
+    if (!kept.has(url)) {
+      URL.revokeObjectURL(url);
+    }
   }
 });

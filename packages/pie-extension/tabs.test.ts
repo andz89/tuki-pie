@@ -51,6 +51,9 @@ function fakeChrome() {
         return tab;
       }),
       reload: vi.fn(async () => undefined),
+      remove: vi.fn(async (id: number) => {
+        openTabs = openTabs.filter((each) => each.id !== id);
+      }),
     },
     windows: {
       getLastFocused: vi.fn(async () => ({ id: 1 })),
@@ -144,14 +147,17 @@ describe('opening an address', () => {
     expect(chrome.tabs.create).not.toHaveBeenCalled();
     expect(chrome.tabs.update).not.toHaveBeenCalled();
     expect(chrome.tabs.reload).not.toHaveBeenCalled();
-    expect(sendEvent.mock.calls).toEqual([['committed'], ['loaded']]);
-    expect(await tabs.checkedTabId()).toBe(7);
+    expect(sendEvent.mock.calls).toEqual([
+      ['committed', 'main'],
+      ['loaded', 'main'],
+    ]);
+    expect(await tabs.siteOfTab(7)).toBe('main');
   });
 
   it('waits for an open tab that is still loading', async () => {
     openTabs = [{ id: 7, url: 'https://a.com/', status: 'loading' }];
     await tabs.open({ url: 'https://a.com' });
-    expect(sendEvent.mock.calls).toEqual([['committed']]);
+    expect(sendEvent.mock.calls).toEqual([['committed', 'main']]);
   });
 
   it('opens a blank background tab first, then the address', async () => {
@@ -163,7 +169,7 @@ describe('opening an address', () => {
     expect(chrome.tabs.update).toHaveBeenCalledExactlyOnceWith(100, {
       url: 'https://a.com',
     });
-    expect(await tabs.checkedTabId()).toBe(100);
+    expect(await tabs.siteOfTab(100)).toBe('main');
     expect(sendEvent).not.toHaveBeenCalled();
   });
 
@@ -189,13 +195,13 @@ describe('opening an address', () => {
     await tabs.open({ url: 'https://a.com' });
     await tabs.open({ url: 'https://b.com' });
     expect(chrome.tabs.update).not.toHaveBeenCalledWith(7, expect.anything());
-    expect(await tabs.checkedTabId()).toBe(100);
+    expect(await tabs.siteOfTab(100)).toBe('main');
   });
 
   it('survives the service worker sleeping', async () => {
     await tabs.open({ url: 'https://a.com' });
     const woken = createTabs({ chrome, sendEvent });
-    expect(await woken.checkedTabId()).toBe(100);
+    expect(await woken.siteOfTab(100)).toBe('main');
   });
 });
 
@@ -212,7 +218,10 @@ describe('refresh', () => {
     sendEvent.mockClear();
     await tabs.reload();
     expect(chrome.tabs.reload).not.toHaveBeenCalled();
-    expect(sendEvent.mock.calls).toEqual([['committed'], ['loaded']]);
+    expect(sendEvent.mock.calls).toEqual([
+      ['committed', 'main'],
+      ['loaded', 'main'],
+    ]);
   });
 });
 
@@ -227,7 +236,7 @@ describe('stop', () => {
 
   it('stops its own tab in place once the page has arrived', async () => {
     await tabs.open({ url: 'https://a.com' });
-    await tabs.noteCommitted();
+    await tabs.noteCommitted('main');
     await tabs.stop();
     expect(chrome.tabs.update).not.toHaveBeenCalledWith(100, {
       url: 'about:blank',
@@ -342,11 +351,9 @@ describe('saving which tabs matter', () => {
     openTabs.push({ id: 7, url: 'https://b.com/', status: 'complete' });
     // A fresh worker, as after the service worker slept.
     tabs = createTabs({ chrome, sendEvent });
-    await Promise.all([tabs.noteCommitted(), tabs.tabRemoved(100)]);
+    await Promise.all([tabs.noteCommitted('main'), tabs.tabRemoved(100)]);
     expect(session.pieTabs).toMatchObject({
-      own: null,
-      checked: null,
-      committed: true,
+      sites: { main: { own: null, checked: null, committed: true } },
     });
   });
 });
@@ -357,8 +364,8 @@ describe('closing tabs', () => {
     await tabs.open({ url: 'https://a.com' });
     sendEvent.mockClear();
     await tabs.tabRemoved(7);
-    expect(sendEvent).toHaveBeenCalledExactlyOnceWith('closed');
-    expect(await tabs.checkedTabId()).toBeNull();
+    expect(sendEvent).toHaveBeenCalledExactlyOnceWith('closed', 'main');
+    expect(await tabs.siteOfTab(7)).toBeNull();
   });
 
   it('ignores other tabs closing', async () => {
@@ -407,7 +414,7 @@ describe('the active tab', () => {
     ];
     const { url } = (await tabs.activeTab()) as { url: string };
     await tabs.open({ url });
-    expect(await tabs.checkedTabId()).toBe(2);
+    expect(await tabs.siteOfTab(2)).toBe('main');
     expect(chrome.tabs.create).not.toHaveBeenCalled();
     expect(chrome.tabs.reload).not.toHaveBeenCalled();
   });
@@ -471,5 +478,71 @@ describe('capture', () => {
     vi.spyOn(Date, 'now').mockReturnValue(later);
     expect(tabs.isCapturing()).toBe(false);
     vi.restoreAllMocks();
+  });
+});
+
+describe('several sites', () => {
+  it('gives each site its own background tab', async () => {
+    await tabs.open({ site: '1', url: 'https://a.com' });
+    await tabs.open({ site: '2', url: 'https://b.com' });
+    expect(chrome.tabs.create).toHaveBeenCalledTimes(2);
+    expect(await tabs.siteOfTab(100)).toBe('1');
+    expect(await tabs.siteOfTab(101)).toBe('2');
+  });
+
+  it('never reads a tab another site already uses', async () => {
+    openTabs = [{ id: 7, url: 'https://a.com/', status: 'complete' }];
+    await tabs.open({ site: '1', url: 'https://a.com' });
+    await tabs.open({ site: '2', url: 'https://a.com' });
+    expect(await tabs.siteOfTab(7)).toBe('1');
+    expect(await tabs.siteOfTab(100)).toBe('2');
+  });
+
+  it('works on the site each request names', async () => {
+    await tabs.open({ site: '1', url: 'https://a.com' });
+    await tabs.open({ site: '2', url: 'https://b.com' });
+    await tabs.reload({ site: '2' });
+    expect(chrome.tabs.reload).toHaveBeenCalledExactlyOnceWith(101);
+    await tabs.read({ site: '1' });
+    expect(chrome.scripting.executeScript).toHaveBeenLastCalledWith({
+      target: { tabId: 100 },
+      files: ['collect-page.js'],
+    });
+  });
+
+  it('reports a closed tab to the site that read it', async () => {
+    await tabs.open({ site: '1', url: 'https://a.com' });
+    await tabs.open({ site: '2', url: 'https://b.com' });
+    await tabs.tabRemoved(101);
+    expect(sendEvent).toHaveBeenCalledExactlyOnceWith('closed', '2');
+    expect(await tabs.siteOfTab(100)).toBe('1');
+  });
+
+  it('closes the tab it opened when the site is forgotten', async () => {
+    await tabs.open({ site: '1', url: 'https://a.com' });
+    await tabs.forget({ site: '1' });
+    expect(chrome.tabs.remove).toHaveBeenCalledExactlyOnceWith(100);
+    expect(await tabs.siteOfTab(100)).toBeNull();
+  });
+
+  it('never closes one of your tabs when the site is forgotten', async () => {
+    openTabs = [{ id: 7, url: 'https://a.com/', status: 'complete' }];
+    await tabs.open({ site: '1', url: 'https://a.com' });
+    await tabs.forget({ site: '1' });
+    expect(chrome.tabs.remove).not.toHaveBeenCalled();
+    expect(await tabs.siteOfTab(7)).toBeNull();
+  });
+
+  it('closes the tab when the site is forgotten while still opening', async () => {
+    const opening = tabs.open({ site: '1', url: 'https://a.com' });
+    await tabs.forget({ site: '1' });
+    await opening;
+    expect(chrome.tabs.remove).toHaveBeenCalledExactlyOnceWith(100);
+    expect(await tabs.siteOfTab(100)).toBeNull();
+  });
+
+  it('uses the default site for an odd site id', async () => {
+    await tabs.open({ site: '../x', url: 'https://a.com' });
+    expect(await tabs.siteOfTab(100)).toBe('main');
   });
 });

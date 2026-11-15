@@ -3,7 +3,7 @@ import type { SiteEventName } from './chrome-bridge';
 import { CAPTURE_MS, ERROR_FAILED, createChromeSite } from './chrome-site';
 import type { ChromeSiteEvents } from './chrome-site';
 
-let emit: (name: SiteEventName) => void;
+let emit: (name: SiteEventName, site?: string) => void;
 let stopListening: ReturnType<typeof vi.fn>;
 let bridge: {
   request: ReturnType<typeof vi.fn>;
@@ -18,7 +18,7 @@ beforeEach(() => {
   bridge = {
     request: vi.fn(async () => null),
     onEvent: vi.fn((listener) => {
-      emit = listener;
+      emit = (name, from = '3') => listener(name, from);
       return stopListening;
     }),
   };
@@ -35,15 +35,17 @@ beforeEach(() => {
 const site = () =>
   createChromeSite(
     bridge as unknown as Parameters<typeof createChromeSite>[0],
+    '3',
     events as unknown as ChromeSiteEvents,
   );
 
 describe('the Chrome site', () => {
   it.each([
-    ['load', ['open', { url: 'https://a.com' }]],
-    ['reload', ['reload', undefined]],
-    ['stop', ['stop']],
-    ['goToTab', ['goToTab']],
+    ['load', ['open', { url: 'https://a.com', site: '3' }]],
+    ['reload', ['reload', { site: '3' }]],
+    ['stop', ['stop', { site: '3' }]],
+    ['goToTab', ['goToTab', { site: '3' }]],
+    ['forget', ['forget', { site: '3' }]],
   ] as const)('sends %s as a fixed action', (method, call) => {
     const chrome = site();
     if (method === 'load') chrome.load('https://a.com');
@@ -54,7 +56,7 @@ describe('the Chrome site', () => {
   it('reads through the bridge', async () => {
     bridge.request.mockResolvedValueOnce({ url: 'x' });
     await expect(site().read()).resolves.toEqual({ url: 'x' });
-    expect(bridge.request).toHaveBeenCalledWith('read');
+    expect(bridge.request).toHaveBeenCalledWith('read', { site: '3' });
   });
 
   it('counts a refused open as a failed page', async () => {
@@ -93,6 +95,7 @@ describe('the Chrome site', () => {
     expect(bridge.request).toHaveBeenCalledWith('showLink', {
       index: 2,
       href: 'https://a.com/',
+      site: '3',
     });
   });
 
@@ -106,6 +109,14 @@ describe('the Chrome site', () => {
     expect(events.failed).not.toHaveBeenCalled();
   });
 
+  it('ignores the events of other sites', () => {
+    site();
+    emit('loaded', '4');
+    emit('closed', '4');
+    expect(events.loaded).not.toHaveBeenCalled();
+    expect(events.closed).not.toHaveBeenCalled();
+  });
+
   it('stops listening when destroyed', () => {
     site().destroy();
     expect(stopListening).toHaveBeenCalledOnce();
@@ -115,6 +126,10 @@ describe('the Chrome site', () => {
     bridge.request.mockResolvedValueOnce({ dataUrl: 'x' });
     const size = { device: 'iPhone 16', reload: false, section: '' };
     await expect(site().capture(size)).resolves.toEqual({ dataUrl: 'x' });
-    expect(bridge.request).toHaveBeenCalledWith('capture', size, CAPTURE_MS);
+    expect(bridge.request).toHaveBeenCalledWith(
+      'capture',
+      { ...size, site: '3' },
+      CAPTURE_MS,
+    );
   });
 });

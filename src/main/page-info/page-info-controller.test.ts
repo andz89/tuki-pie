@@ -56,6 +56,22 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe('an outdated extension', () => {
+  it('ends the check with a note to reload it', () => {
+    controller.check('a.com');
+    controller.extensionOutdated();
+    expect(controller.state()).toMatchObject({
+      status: 'failed',
+      message: expect.stringContaining('Reload the Pie Launcher extension'),
+    });
+  });
+
+  it('says nothing when no page is loading', () => {
+    controller.extensionOutdated();
+    expect(send).not.toHaveBeenCalled();
+  });
+});
+
 describe('checking an address', () => {
   it('loads a bare address over https and says it is checking', () => {
     controller.check('example.com');

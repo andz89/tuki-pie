@@ -258,9 +258,10 @@ export function createConnection({ openSocket, storage, onRequest }) {
     void connect({ force: true });
   }
 
-  function sendEvent(name) {
+  // site: the Page Info tab the event belongs to.
+  function sendEvent(name, site) {
     if (socket && isReady) {
-      send(socket, { type: MSG.EVENT, name });
+      send(socket, { type: MSG.EVENT, name, site });
     }
   }
 

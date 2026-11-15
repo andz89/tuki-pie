@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IpcChannels } from '../shared/ipc-channels';
-import type { PageInfoBridge, PageInfoUpdate } from '../shared/types';
+import type {
+  PageInfoBridge,
+  PageInfoUpdate,
+  SiteTabList,
+} from '../shared/types';
 
 const bridge: PageInfoBridge = {
   getState: () => ipcRenderer.invoke(IpcChannels.pageInfoGetState),
@@ -27,6 +31,16 @@ const bridge: PageInfoBridge = {
     ipcRenderer.on(IpcChannels.pageInfoUpdate, handler);
     return () =>
       ipcRenderer.removeListener(IpcChannels.pageInfoUpdate, handler);
+  },
+  getTabs: () => ipcRenderer.invoke(IpcChannels.pageInfoGetTabs),
+  newTab: (address, ticked) =>
+    ipcRenderer.invoke(IpcChannels.pageInfoNewTab, address, ticked ?? false),
+  closeTab: (id) => ipcRenderer.invoke(IpcChannels.pageInfoCloseTab, id),
+  switchTab: (id) => ipcRenderer.invoke(IpcChannels.pageInfoSwitchTab, id),
+  onTabs: (listener) => {
+    const handler = (_event: unknown, tabs: SiteTabList) => listener(tabs);
+    ipcRenderer.on(IpcChannels.pageInfoTabs, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.pageInfoTabs, handler);
   },
   settings: {
     get: () => ipcRenderer.invoke(IpcChannels.settingsGet),

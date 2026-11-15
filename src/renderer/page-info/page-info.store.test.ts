@@ -13,6 +13,11 @@ vi.mock('./page-info-bridge', () => ({
     goToTab: vi.fn(),
     setLinkFilter: vi.fn(),
     onUpdate: vi.fn(),
+    getTabs: vi.fn(),
+    onTabs: vi.fn(),
+    newTab: vi.fn(),
+    closeTab: vi.fn(),
+    switchTab: vi.fn(),
     capture: vi.fn(),
     saveCapture: vi.fn(),
     copyCapture: vi.fn(),
@@ -21,6 +26,7 @@ vi.mock('./page-info-bridge', () => ({
 }));
 
 const update = (changes: Partial<PageInfoUpdate>): PageInfoUpdate => ({
+  tabId: '1',
   status: 'idle',
   address: null,
   report: null,
@@ -41,10 +47,16 @@ beforeEach(() => {
     value: update({}),
   });
   vi.mocked(pageInfoBridge.onUpdate).mockReturnValue(() => undefined);
+  vi.mocked(pageInfoBridge.onTabs).mockReturnValue(() => undefined);
+  vi.mocked(pageInfoBridge.getTabs).mockResolvedValue({
+    ok: true,
+    value: { tabs: [], activeId: '1' },
+  });
   usePageInfoStore.setState({
     update: update({}),
     problem: null,
     screenshot: NO_SCREENSHOT,
+    otherScreenshots: {},
     captureSize: { device: '', reload: false, section: '' },
     sectionKind: 'class',
   });
@@ -313,5 +325,78 @@ describe('the Screenshot tab', () => {
     vi.mocked(pageInfoBridge.saveCapture).mockResolvedValue(OK);
     await store().saveScreenshot();
     expect(store().screenshot.notice).toBe('Saved to Pictures\\Pie Launcher.');
+  });
+
+  it('keeps each tab’s picture when switching tabs', async () => {
+    const listener = await listen();
+    vi.mocked(pageInfoBridge.capture).mockResolvedValue({
+      ok: true,
+      value: TAKEN,
+    });
+    await store().takeScreenshot();
+    const kept = store().screenshot.shot?.imageUrl;
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+    listener(update({ tabId: '2' }));
+    expect(store().screenshot).toEqual(NO_SCREENSHOT);
+    listener(checked);
+    expect(store().screenshot.shot?.imageUrl).toBe(kept);
+    expect(revoke).not.toHaveBeenCalled();
+    revoke.mockRestore();
+  });
+
+  it('lets a closed tab’s picture go', async () => {
+    const listener = await listen();
+    vi.mocked(pageInfoBridge.capture).mockResolvedValue({
+      ok: true,
+      value: TAKEN,
+    });
+    await store().takeScreenshot();
+    const kept = store().screenshot.shot?.imageUrl;
+    listener(update({ tabId: '2' }));
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+    const [tabsListener] = vi.mocked(pageInfoBridge.onTabs).mock.calls[0];
+    tabsListener({
+      tabs: [{ id: '2', title: 'New tab', address: null, status: 'idle' }],
+      activeId: '2',
+    });
+    expect(store().otherScreenshots).toEqual({});
+    expect(revoke).toHaveBeenCalledWith(kept);
+    revoke.mockRestore();
+  });
+
+  it('puts a picture taken before a switch with its own tab', async () => {
+    const listener = await listen();
+    let finish: (value: { ok: true; value: typeof TAKEN }) => void = () => {};
+    vi.mocked(pageInfoBridge.capture).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const taking = store().takeScreenshot();
+    listener(update({ tabId: '2' }));
+    finish({ ok: true, value: TAKEN });
+    await taking;
+    expect(store().screenshot).toEqual(NO_SCREENSHOT);
+    expect(store().otherScreenshots['1']?.status).toBe('done');
+  });
+});
+
+describe('site tabs', () => {
+  it('opens a tab for a link and shows why it was refused', async () => {
+    vi.mocked(pageInfoBridge.newTab).mockResolvedValue({
+      ok: false,
+      error: 'Chrome not connected.',
+    });
+    await store().newTab('https://a.com/');
+    expect(pageInfoBridge.newTab).toHaveBeenCalledWith('https://a.com/', false);
+    expect(store().problem).toBe('Chrome not connected.');
+  });
+
+  it('clears the problem when moving to another tab', async () => {
+    await store().start();
+    usePageInfoStore.setState({ problem: 'old' });
+    const [listener] = vi.mocked(pageInfoBridge.onUpdate).mock.calls[0];
+    listener(update({ tabId: '2' }));
+    expect(store().problem).toBeNull();
   });
 });

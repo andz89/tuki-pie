@@ -6,6 +6,7 @@ import type { LinkSpot } from '../../shared/types';
 import { PieIcon } from '../components/icons/SliceIcon';
 import { InfoEmpty } from './InfoCard';
 import { pageInfoBridge } from './page-info-bridge';
+import { usePageInfoStore } from './page-info.store';
 import {
   ASK_ABOVE,
   countAddresses,
@@ -63,7 +64,8 @@ interface LinkRowProps {
   chromeConnected: boolean;
   onShow: (link: NumberedLink) => void;
   onCopy: (link: NumberedLink) => void;
-  onOpen: (link: NumberedLink) => void;
+  // inNewTab: checks it in a new tab of this window instead.
+  onOpen: (link: NumberedLink, inNewTab: boolean) => void;
   onToggle: (link: NumberedLink, included: boolean) => void;
 }
 
@@ -127,8 +129,19 @@ const LinkRow = memo(function LinkRow({
               type="button"
               className="link-button"
               disabled={!chromeConnected}
-              title="Open in a background tab in Chrome"
-              onClick={() => onOpen(link)}
+              title="Open in a background tab in Chrome. Ctrl+click or middle-click to check it in a new tab here."
+              onClick={(event) => onOpen(link, event.ctrlKey)}
+              // A middle click would start scrolling instead.
+              onMouseDown={(event) => {
+                if (event.button === 1) {
+                  event.preventDefault();
+                }
+              }}
+              onAuxClick={(event) => {
+                if (event.button === 1) {
+                  onOpen(link, true);
+                }
+              }}
             >
               Open
             </button>
@@ -233,10 +246,13 @@ export const PageLinks = memo(function PageLinks({
     [linkFilter],
   );
 
+  const newTab = usePageInfoStore((state) => state.newTab);
   const openOne = useCallback(
-    ({ href }: NumberedLink) =>
-      void pageInfoBridge.openLinks([href], tickedMarked([href])),
-    [tickedMarked],
+    ({ href }: NumberedLink, inNewTab: boolean) =>
+      void (inNewTab
+        ? newTab(href, tickedMarked([href]).length > 0)
+        : pageInfoBridge.openLinks([href], tickedMarked([href]))),
+    [tickedMarked, newTab],
   );
 
   const toggle = useCallback(

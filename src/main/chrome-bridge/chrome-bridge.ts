@@ -19,6 +19,7 @@ import {
   PORT,
   appProofText,
   extProofText,
+  isSite,
 } from '../../../packages/pie-extension/protocol.js';
 import type { ChromeStatus } from '../../shared/types';
 
@@ -29,7 +30,6 @@ export const SITE_EVENTS = [
   'failed',
   'cancelled',
   'closed',
-  'activeTabChanged',
 ] as const;
 export type SiteEventName = (typeof SITE_EVENTS)[number];
 
@@ -51,10 +51,18 @@ const Reply = z.object({
   ok: z.boolean(),
   result: z.unknown().optional(),
 });
+// site: the Page Info tab the event belongs to. An extension older than
+// the app sends none, and listeners get null.
 const Event = z.object({
   type: z.literal(MSG.EVENT),
   name: z.enum(SITE_EVENTS),
+  site: z.string().refine(isSite).optional(),
 });
+
+export type SiteEventListener = (
+  name: SiteEventName,
+  site: string | null,
+) => void;
 
 interface Waiting {
   resolve: (value: unknown) => void;
@@ -94,7 +102,7 @@ export class ChromeBridge {
   private handshaking = 0;
   private currentStatus: ChromeStatus = 'not-connected';
   private readonly statusListeners = new Set<(status: ChromeStatus) => void>();
-  private readonly eventListeners = new Set<(name: SiteEventName) => void>();
+  private readonly eventListeners = new Set<SiteEventListener>();
   private readonly waiting = new Map<string, Waiting>();
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private isStopped = false;
@@ -200,7 +208,7 @@ export class ChromeBridge {
     return () => this.statusListeners.delete(listener);
   }
 
-  onEvent(listener: (name: SiteEventName) => void): () => void {
+  onEvent(listener: SiteEventListener): () => void {
     this.eventListeners.add(listener);
     return () => this.eventListeners.delete(listener);
   }
@@ -332,7 +340,7 @@ export class ChromeBridge {
     const event = Event.safeParse(message);
     if (event.success) {
       for (const listener of this.eventListeners) {
-        listener(event.data.name);
+        listener(event.data.name, event.data.site ?? null);
       }
     }
   }

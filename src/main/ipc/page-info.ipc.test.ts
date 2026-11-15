@@ -42,9 +42,18 @@ const controller = {
   capturedImage: vi.fn((): typeof SHOT | null => SHOT),
   state: () => ({ report: { meta: { title: 'Shop' } } }),
 };
+const images = { get: vi.fn(async () => null) };
+const siteTabs = {
+  add: vi.fn(),
+  close: vi.fn(),
+  switchTo: vi.fn(),
+  list: vi.fn(() => ({ tabs: [], activeId: '1' })),
+};
 vi.mock('../windows/page-info-window', () => ({
   focusPageInfoWindow: vi.fn(),
   getPageInfoController: vi.fn(() => controller),
+  getPageInfoTabs: vi.fn(() => siteTabs),
+  getPageInfoImages: vi.fn(() => images),
   goToChromeTab: vi.fn(),
   setPageInfoOnTop: vi.fn(),
 }));
@@ -154,6 +163,15 @@ describe('saving Link filters', () => {
 });
 
 describe('page images', () => {
+  it('asks the active tab for its picture', async () => {
+    await handlerFor(IpcChannels.pageInfoImage)(
+      eventFor(IpcChannels.pageInfoImage),
+      'https://a.com/x.png',
+      'thumb',
+    );
+    expect(images.get).toHaveBeenCalledWith('https://a.com/x.png', 'thumb');
+  });
+
   it('takes only a small or a full picture', async () => {
     await expect(
       handlerFor(IpcChannels.pageInfoImage)(
@@ -257,5 +275,48 @@ describe('the page screenshot', () => {
       });
     }
     controller.capturedImage.mockReturnValue(SHOT);
+  });
+});
+
+describe('site tabs', () => {
+  const call = (channel: string, ...args: unknown[]) =>
+    handlerFor(channel)(eventFor(channel), ...args);
+
+  it('opens an empty tab', async () => {
+    await call(IpcChannels.pageInfoNewTab, null, false);
+    expect(siteTabs.add).toHaveBeenCalledExactlyOnceWith(undefined);
+  });
+
+  it('checks a link opened in a new tab there', async () => {
+    await call(IpcChannels.pageInfoNewTab, 'https://a.com/x', false);
+    expect(siteTabs.add).toHaveBeenCalledExactlyOnceWith('https://a.com/x');
+  });
+
+  it('passes on why a new tab was refused', async () => {
+    siteTabs.add.mockImplementationOnce(() => {
+      throw new Error('Chrome not connected.');
+    });
+    await expect(
+      call(IpcChannels.pageInfoNewTab, 'https://a.com/x', false),
+    ).rejects.toThrow('Chrome not connected.');
+  });
+
+  it('never opens a link the saved Link filters hide', async () => {
+    await expect(
+      call(IpcChannels.pageInfoNewTab, 'https://a.com/posts/5/delete', false),
+    ).resolves.toMatchObject({ ok: false });
+    expect(siteTabs.add).not.toHaveBeenCalled();
+  });
+
+  it('closes and switches by id', async () => {
+    await call(IpcChannels.pageInfoCloseTab, '2');
+    await call(IpcChannels.pageInfoSwitchTab, '3');
+    expect(siteTabs.close).toHaveBeenCalledWith('2');
+    expect(siteTabs.switchTo).toHaveBeenCalledWith('3');
+  });
+
+  it('refuses an id that is not text', async () => {
+    await expect(call(IpcChannels.pageInfoCloseTab, 5)).rejects.toThrow();
+    expect(siteTabs.close).not.toHaveBeenCalled();
   });
 });

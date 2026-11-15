@@ -28,6 +28,8 @@ const CHROME_OFF = 'Chrome not connected.';
 const TAB_CLOSED = 'The Chrome tab was closed.';
 const NOTHING_TO_CAPTURE = 'Check a page first.';
 const PAGE_CHANGED = 'The page changed while taking the screenshot. Try again.';
+const RELOAD_EXTENSION =
+  'Reload the Pie Launcher extension in Chrome (chrome://extensions), then try again.';
 
 const CAPTURE_PROBLEMS: Record<string, string> = {
   'devtools-open': 'Close DevTools (F12) on this tab, then try again.',
@@ -92,16 +94,12 @@ export interface SiteViewer {
   hide(): void;
 }
 
+// Shared by every tab, so a page's id is never the same as another tab's.
+let lastReportId = 0;
+const nextReportId = () => (lastReportId += 1);
+
 export class PageInfoController {
-  private update: PageInfoUpdate = {
-    status: 'idle',
-    address: null,
-    report: null,
-    message: null,
-    siteVisible: false,
-    chromeConnected: false,
-    reportId: 0,
-  };
+  private update: PageInfoUpdate;
   private isDisposed = false;
   private isPageLoading = false;
   private hasCommitted = false;
@@ -124,7 +122,19 @@ export class PageInfoController {
     private readonly site: PageSite,
     private readonly viewer: SiteViewer,
     private readonly send: (update: PageInfoUpdate) => void,
-  ) {}
+    tabId = 'main',
+  ) {
+    this.update = {
+      tabId,
+      status: 'idle',
+      address: null,
+      report: null,
+      message: null,
+      siteVisible: false,
+      chromeConnected: false,
+      reportId: 0,
+    };
+  }
 
   state(): PageInfoUpdate {
     return this.update;
@@ -315,6 +325,14 @@ export class PageInfoController {
     }
   }
 
+  // The extension in Chrome is older than the app: its events don't say
+  // which tab they are for, so a page being checked would never finish.
+  extensionOutdated(): void {
+    if (this.isPageLoading) {
+      this.endPage({ message: RELOAD_EXTENSION });
+    }
+  }
+
   // You closed the Chrome tab.
   siteClosed(): void {
     this.endPage({ message: TAB_CLOSED });
@@ -339,7 +357,7 @@ export class PageInfoController {
       address,
       report: null,
       message: null,
-      reportId: this.update.reportId + 1,
+      reportId: nextReportId(),
     });
     this.loadTimer = setTimeout(() => this.giveUpWaiting(), LOAD_LIMIT_MS);
   }
@@ -370,7 +388,7 @@ export class PageInfoController {
       status: 'failed',
       report: null,
       message: COULD_NOT_OPEN,
-      reportId: this.update.reportId + 1,
+      reportId: nextReportId(),
       ...changes,
     });
   }
@@ -403,7 +421,7 @@ export class PageInfoController {
       return this.update.reportId;
     }
     this.forgetCapture();
-    return this.update.reportId + 1;
+    return nextReportId();
   }
 
   private async read(warning: string | null = null): Promise<void> {

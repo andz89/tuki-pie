@@ -83,6 +83,10 @@ export const CHANNEL_ROLES: Readonly<Record<string, readonly WindowRole[]>> = {
   [C.notesTakeRequest]: ['notes'],
 
   [C.pageInfoGetState]: ['page-info'],
+  [C.pageInfoGetTabs]: ['page-info'],
+  [C.pageInfoNewTab]: ['page-info'],
+  [C.pageInfoCloseTab]: ['page-info'],
+  [C.pageInfoSwitchTab]: ['page-info'],
   [C.pageInfoCheck]: ['page-info'],
   [C.pageInfoRefresh]: ['page-info'],
   [C.pageInfoSetSiteVisible]: ['page-info'],

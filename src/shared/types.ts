@@ -80,8 +80,10 @@ export interface ScreenArea {
 // Where Page Info reads a site: its hidden window, or a Chrome tab.
 export type ChromeStatus = 'connected' | 'not-connected' | 'port-in-use';
 
-// What the Page Info window draws.
+// What the Page Info window draws for one of its tabs.
 export interface PageInfoUpdate {
+  // The tab this belongs to.
+  tabId: string;
   status: 'idle' | 'checking' | 'done' | 'failed';
   address: string | null;
   report: PageReport | null;
@@ -91,6 +93,19 @@ export interface PageInfoUpdate {
   // Changes with each new page, not with each re-read of the same one, so
   // the window keeps your ticks while late tags arrive.
   reportId: number;
+}
+
+// One tab in the strip at the top of the Page Info window.
+export interface SiteTabSummary {
+  id: string;
+  title: string;
+  address: string | null;
+  status: PageInfoUpdate['status'];
+}
+
+export interface SiteTabList {
+  tabs: SiteTabSummary[];
+  activeId: string;
 }
 
 // A page image as Chrome fetched it: small ('thumb') or as it came ('full').
@@ -210,6 +225,14 @@ export interface PageInfoBridge {
   // A page image through Chrome; null when it couldn't be had.
   image(url: string, size: PageImageSize): Promise<Result<PageImage | null>>;
   onUpdate(listener: (update: PageInfoUpdate) => void): () => void;
+  // The tabs across the top. A new one becomes the active one, and checks
+  // the address when one is given.
+  getTabs(): Promise<Result<SiteTabList>>;
+  // ticked: the address is marked as carrying a token, and you ticked it.
+  newTab(address: string | null, ticked?: boolean): Promise<Result>;
+  closeTab(id: string): Promise<Result>;
+  switchTab(id: string): Promise<Result>;
+  onTabs(listener: (tabs: SiteTabList) => void): () => void;
   settings: {
     get(): Promise<Result<Settings>>;
   };

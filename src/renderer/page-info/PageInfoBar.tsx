@@ -20,7 +20,8 @@ export function AddressBar() {
   const refresh = usePageInfoStore((state) => state.refresh);
   const goToTab = usePageInfoStore((state) => state.goToTab);
   const toggleOnTop = usePageInfoStore((state) => state.toggleOnTop);
-  const [typed, setTyped] = useState('');
+  // Keyed by the tab, so each tab starts with its own address.
+  const [typed, setTyped] = useState(address ?? '');
 
   useEffect(() => {
     if (address !== null) {
@@ -41,6 +42,8 @@ export function AddressBar() {
         placeholder="example.com"
         value={typed}
         maxLength={MAX_ADDRESS_LENGTH}
+        // A new, empty tab is ready for an address.
+        autoFocus={address === null}
         onChange={(event) => setTyped(event.target.value)}
       />
       <button

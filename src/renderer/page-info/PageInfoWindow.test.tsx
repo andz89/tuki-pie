@@ -14,6 +14,12 @@ vi.mock('./page-info-bridge', () => ({
   pageInfoBridge: {
     getState: vi.fn(async () => ({ ok: false, error: 'not in a test' })),
     onUpdate: vi.fn(() => () => undefined),
+    getTabs: vi.fn(async () => ({ ok: false, error: 'not in a test' })),
+    onTabs: vi.fn(() => () => undefined),
+    newTab: vi.fn(async () => ({ ok: true, value: undefined })),
+    closeTab: vi.fn(async () => ({ ok: true, value: undefined })),
+    switchTab: vi.fn(async () => ({ ok: true, value: undefined })),
+    openLinks: vi.fn(async () => ({ ok: true, value: true })),
     settings: { get: vi.fn(async () => ({ ok: false, error: 'no' })) },
     image: vi.fn(async () => ({
       ok: true,
@@ -77,6 +83,7 @@ afterEach(() => {
 
 async function showReport() {
   const update: PageInfoUpdate = {
+    tabId: '1',
     status: 'done',
     address: PAGE.url,
     report: buildPageReport(PAGE),
@@ -85,7 +92,16 @@ async function showReport() {
     chromeConnected: true,
     reportId: 1,
   };
-  usePageInfoStore.setState({ update });
+  usePageInfoStore.setState({
+    update,
+    tabs: {
+      tabs: [
+        { id: '1', title: 'Hi', address: PAGE.url, status: 'done' },
+        { id: '2', title: 'New tab', address: null, status: 'idle' },
+      ],
+      activeId: '1',
+    },
+  });
   root = createRoot(container);
   await act(async () => root.render(<PageInfoWindow />));
 }
@@ -177,5 +193,64 @@ describe('PageInfoWindow', () => {
     vi.mocked(shownLinks).mockClear();
     type(input('Highlight words in the results'), 'page');
     expect(shownLinks).not.toHaveBeenCalled();
+  });
+
+  it('shows the site tabs and opens a new one with +', async () => {
+    await showReport();
+    const titles = [...container.querySelectorAll('.site-tab-text')].map(
+      (each) => each.textContent,
+    );
+    expect(titles).toEqual(['Hi', 'New tab']);
+    const add = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="New tab"]',
+    )!;
+    act(() => add.click());
+    expect(pageInfoBridge.newTab).toHaveBeenCalledWith(null, false);
+  });
+
+  it('switches and closes site tabs', async () => {
+    await showReport();
+    const tab = container.querySelector<HTMLButtonElement>('#site-tab-2')!;
+    act(() => tab.click());
+    expect(pageInfoBridge.switchTab).toHaveBeenCalledWith('2');
+    const close = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Close Hi"]',
+    )!;
+    act(() => close.click());
+    expect(pageInfoBridge.closeTab).toHaveBeenCalledWith('1');
+  });
+
+  it('checks a link in a new tab on Ctrl+click', async () => {
+    await showReport();
+    const open = [...container.querySelectorAll('.link-row button')].find(
+      (each) => each.textContent === 'Open',
+    )!;
+    act(() => {
+      open.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, ctrlKey: true }),
+      );
+    });
+    expect(pageInfoBridge.newTab).toHaveBeenCalledWith(
+      'https://example.com/page-0',
+      false,
+    );
+    expect(pageInfoBridge.openLinks).not.toHaveBeenCalled();
+  });
+
+  it('keeps each site tab on its own inner tab', async () => {
+    await showReport();
+    const links = [...container.querySelectorAll('[role="tab"]')].find((each) =>
+      each.textContent?.startsWith('Links'),
+    ) as HTMLButtonElement;
+    act(() => links.click());
+    expect(links.getAttribute('aria-selected')).toBe('true');
+    const first = usePageInfoStore.getState().update;
+    act(() => usePageInfoStore.setState({ update: { ...first, tabId: '2' } }));
+    const selected = () =>
+      container.querySelector('.page-info-tabs [aria-selected="true"]')
+        ?.textContent;
+    expect(selected()).toBe('Dashboard');
+    act(() => usePageInfoStore.setState({ update: first }));
+    expect(selected()).toMatch(/^Links/);
   });
 });

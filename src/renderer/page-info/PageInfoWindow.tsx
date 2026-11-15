@@ -20,10 +20,27 @@ import { includedLinks, shownLinks, uniqueLinks } from './page-links';
 import type { LinkChoices } from './page-links';
 import { AddressBar, HighlightBox } from './PageInfoBar';
 import { SeoCard } from './SeoCard';
+import { SiteTabs } from './SiteTabs';
 import { SocialCard } from './SocialCard';
 import { SortableCards } from './SortableCards';
 import { TrackingCard } from './TrackingCard';
 import { usePageInfoStore } from './page-info.store';
+
+const NO_CHOICES: LinkChoices = new Map();
+
+// The record without closed tabs; the same record when none closed.
+function onlyOpen<V>(
+  record: Record<string, V>,
+  open: Set<string>,
+): Record<string, V> {
+  const ids = Object.keys(record);
+  if (ids.every((id) => open.has(id))) {
+    return record;
+  }
+  return Object.fromEntries(
+    Object.entries(record).filter(([id]) => open.has(id)),
+  );
+}
 
 const TABS: { id: PageInfoTab; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -41,15 +58,34 @@ export function PageInfoWindow() {
   const loadSettings = usePageInfoStore((state) => state.loadSettings);
 
   const { status, address, report, message } = update;
-  const { chromeConnected, reportId } = update;
+  const { chromeConnected, reportId, tabId } = update;
   const linkFilter = useMemo(
     () => readLinkFilter(settings.linkFilter),
     [settings.linkFilter],
   );
-  const [tab, setTab] = useState<PageInfoTab>('dashboard');
+  // Each site tab keeps its own inner tab and ticks.
+  const [innerTabs, setInnerTabs] = useState<Record<string, PageInfoTab>>({});
+  const tab = innerTabs[tabId] ?? 'dashboard';
+  const setTab = useCallback(
+    (next: PageInfoTab) =>
+      setInnerTabs((current) => ({ ...current, [tabId]: next })),
+    [tabId],
+  );
   const [hideDuplicates, setHideDuplicates] = useState(true);
   // The user's ticks in the Links list, until the next check.
-  const [choices, setChoices] = useState<LinkChoices>(new Map());
+  const [allChoices, setAllChoices] = useState<Record<string, LinkChoices>>({});
+  const choices = useMemo(
+    () => allChoices[tabId] ?? NO_CHOICES,
+    [allChoices, tabId],
+  );
+  const setChoices = useCallback(
+    (change: (current: LinkChoices) => LinkChoices) =>
+      setAllChoices((all) => ({
+        ...all,
+        [tabId]: change(all[tabId] ?? NO_CHOICES),
+      })),
+    [tabId],
+  );
   // The tab counts what the Links list shows. Worked out only when the links,
   // filters or ticks change: a page can have 5000 links.
   const reportLinks = report?.links;
@@ -71,7 +107,7 @@ export function PageInfoWindow() {
   const choose = useCallback(
     (href: string, included: boolean) =>
       setChoices((current) => new Map(current).set(href, included)),
-    [],
+    [setChoices],
   );
   // Ticks every plain link again; marked links keep their ticks.
   const includeAll = useCallback(
@@ -79,7 +115,7 @@ export function PageInfoWindow() {
       setChoices(
         (current) => new Map([...current].filter(([, included]) => included)),
       ),
-    [],
+    [setChoices],
   );
   const resultsRef = useRef<HTMLElement>(null);
   const baseId = useId();
@@ -124,14 +160,29 @@ export function PageInfoWindow() {
     return () => window.removeEventListener('focus', reloadLook);
   }, [start, loadSettings]);
 
-  // Counts the checks, so the dashboard plays its entrance for each one.
-  const [checkCount, setCheckCount] = useState(0);
   // A new page starts with every link included. A re-read of the same page,
-  // which only adds late tags, keeps your ticks.
+  // which only adds late tags, keeps your ticks, and so does a switch to
+  // another tab and back. Page ids are never shared between tabs.
+  const shownPage = useRef<Record<string, number>>({});
   useEffect(() => {
-    setChoices(new Map());
-    setCheckCount((count) => count + 1);
-  }, [reportId]);
+    const before = shownPage.current[tabId];
+    shownPage.current[tabId] = reportId;
+    if (before !== undefined && before !== reportId) {
+      setChoices(() => NO_CHOICES);
+    }
+  }, [tabId, reportId, setChoices]);
+
+  // A closed tab's inner tab and ticks go with it.
+  const openTabs = usePageInfoStore((state) => state.tabs.tabs);
+  useEffect(() => {
+    if (openTabs.length === 0) {
+      return; // Not known yet.
+    }
+    const open = new Set(openTabs.map(({ id }) => id));
+    setInnerTabs((current) => onlyOpen(current, open));
+    setAllChoices((current) => onlyOpen(current, open));
+    shownPage.current = onlyOpen(shownPage.current, open);
+  }, [openTabs]);
 
   return (
     <div
@@ -140,7 +191,8 @@ export function PageInfoWindow() {
       style={{ '--accent': settings.accent } as CSSProperties}
     >
       <div className="page-info-bar">
-        <AddressBar />
+        <SiteTabs />
+        <AddressBar key={tabId} />
         <HighlightBox resultsRef={resultsRef} />
         <div
           className="info-tabs page-info-tabs"
@@ -186,7 +238,7 @@ export function PageInfoWindow() {
             hidden={tab !== 'dashboard'}
           >
             <PageDashboard
-              key={checkCount}
+              key={`${tabId}:${reportId}`}
               report={report}
               countedLinks={countedLinks}
               chromeConnected={chromeConnected}

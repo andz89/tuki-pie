@@ -5,6 +5,9 @@ import type { OnTop } from '../../shared/schemas/settings.schema';
 import { getChromeBridge } from '../chrome-bridge/chrome-connection';
 import { createChromeSite } from '../chrome-bridge/chrome-site';
 import { PageInfoController } from '../page-info/page-info-controller';
+import { PageImages } from '../page-info/page-images';
+import { PageInfoTabs } from '../page-info/page-info-tabs';
+import type { OpenSiteTab } from '../page-info/page-info-tabs';
 import { addressFromClipboard } from '../page-info/site-address';
 import {
   activeTabAddress,
@@ -14,14 +17,26 @@ import { createSiteViewer } from './site-window';
 import { setWindowRole } from '../ipc/ipc-access';
 
 let pageInfoWindow: BrowserWindow | null = null;
-let controller: PageInfoController | null = null;
+// Each tab also keeps the pictures of its page, fetched by Chrome.
+type SiteTab = OpenSiteTab & { images: PageImages };
+
+let tabs: PageInfoTabs<SiteTab> | null = null;
 // A page that redirects ends on a different address than the one copied, so
 // this is what stops the same copied address from loading again.
 let lastCopiedAddress: string | null = null;
 let keepOnTop = false;
 
+// The active tab's controller. Every page action works on it.
 export function getPageInfoController(): PageInfoController | null {
-  return controller;
+  return tabs?.active() ?? null;
+}
+
+export function getPageInfoTabs(): PageInfoTabs<SiteTab> | null {
+  return tabs;
+}
+
+export function getPageInfoImages(): PageImages | null {
+  return tabs?.activeTab().images ?? null;
 }
 
 // The screenshot may bring Chrome to the front; the window you clicked in
@@ -41,6 +56,7 @@ export function setPageInfoOnTop(onTop: OnTop): void {
 
 // The window stays open beside Chrome, so you can keep working from it.
 export function goToChromeTab(): void {
+  const controller = getPageInfoController();
   if (!pageInfoWindow || !controller?.state().chromeConnected) {
     return;
   }
@@ -80,8 +96,12 @@ export async function openPageInfo(): Promise<void> {
     activeChromeTab(),
     clipboard.readText().catch(() => ''),
   ]);
-  // The window closed, or you started a check yourself, while waiting.
-  if (active !== controller || active.checkCount() !== checksBefore) {
+  // The window closed, you switched tabs, or you started a check yourself,
+  // while waiting.
+  if (
+    active !== getPageInfoController() ||
+    active.checkCount() !== checksBefore
+  ) {
     return;
   }
   const choice = chooseStartAddress({
@@ -101,13 +121,13 @@ export async function openPageInfo(): Promise<void> {
 }
 
 function showOrCreateWindow(): PageInfoController {
-  if (pageInfoWindow && controller) {
+  if (pageInfoWindow && tabs) {
     if (pageInfoWindow.isMinimized()) {
       pageInfoWindow.restore();
     }
     pageInfoWindow.show();
     pageInfoWindow.focus();
-    return controller;
+    return tabs.active();
   }
 
   const window = new BrowserWindow({
@@ -142,53 +162,103 @@ function showOrCreateWindow(): PageInfoController {
     );
   }
 
-  const toController = (run: (active: PageInfoController) => void) => () => {
-    if (controller) {
-      run(controller);
+  const send = (channel: string, value: unknown) => {
+    if (!window.isDestroyed()) {
+      window.webContents.send(channel, value);
     }
   };
   // The in-app browser only shows the page. Chrome is where it is read.
   const viewer = createSiteViewer({
-    hidden: toController((c) => c.siteHidden()),
+    hidden: () => tabs?.active().siteHidden(),
   });
   const bridge = getChromeBridge();
-  const chromeSite = createChromeSite(
-    bridge ?? {
-      request: () => Promise.reject(new Error('not-connected')),
-      onEvent: () => () => undefined,
+  const created = new PageInfoTabs({
+    make: (id, sendUpdate) => {
+      // Each tab's events reach only its own controller.
+      let tabController: PageInfoController | null = null;
+      const to = (run: (c: PageInfoController) => void) => () => {
+        if (tabController) {
+          run(tabController);
+        }
+      };
+      const chromeSite = createChromeSite(
+        bridge ?? {
+          request: () => Promise.reject(new Error('not-connected')),
+          onEvent: () => () => undefined,
+        },
+        id,
+        {
+          committed: to((c) => c.sitePageCommitted()),
+          loaded: to((c) => c.siteLoaded()),
+          changedInPlace: to((c) => c.sitePageChangedInPlace()),
+          failed: (errorCode) => to((c) => c.siteFailed(errorCode))(),
+          cancelled: to((c) => c.siteCancelled()),
+          closed: to((c) => c.siteClosed()),
+        },
+      );
+      const controller = new PageInfoController(
+        chromeSite,
+        viewer,
+        sendUpdate,
+        id,
+      );
+      tabController = controller;
+      controller.setChromeConnected(bridge?.status() === 'connected');
+      const images = new PageImages({
+        request: (action, args, timeoutMs) =>
+          bridge
+            ? bridge.request(action, args, timeoutMs)
+            : Promise.reject(new Error('not-connected')),
+        currentPage: () => {
+          const { report, reportId } = controller.state();
+          return report
+            ? {
+                reportId,
+                url: report.url,
+                images: report.images,
+                featuredImages: report.featuredImages.map(({ url }) => url),
+              }
+            : null;
+        },
+      });
+      return {
+        controller,
+        images,
+        forget: () => chromeSite.forget(),
+        destroy: () => chromeSite.destroy(),
+      };
     },
-    {
-      committed: toController((c) => c.sitePageCommitted()),
-      loaded: toController((c) => c.siteLoaded()),
-      changedInPlace: toController((c) => c.sitePageChangedInPlace()),
-      failed: (errorCode) => toController((c) => c.siteFailed(errorCode))(),
-      cancelled: toController((c) => c.siteCancelled()),
-      closed: toController((c) => c.siteClosed()),
-    },
-  );
-  const created = new PageInfoController(chromeSite, viewer, (update) => {
-    if (!window.isDestroyed()) {
-      window.webContents.send(IpcChannels.pageInfoUpdate, update);
-    }
+    sendUpdate: (update) => send(IpcChannels.pageInfoUpdate, update),
+    sendTabs: (list) => send(IpcChannels.pageInfoTabs, list),
   });
-  created.setChromeConnected(bridge?.status() === 'connected');
   const stopWatchingChrome =
-    bridge?.onStatus((status) =>
-      created.setChromeConnected(status === 'connected'),
-    ) ?? (() => undefined);
+    bridge?.onStatus((status) => {
+      for (const each of created.controllers()) {
+        each.setChromeConnected(status === 'connected');
+      }
+    }) ?? (() => undefined);
+  // An event with no tab comes from an extension older than this app.
+  const stopWatchingVersion =
+    bridge?.onEvent((_name, site) => {
+      if (site === null) {
+        for (const each of created.controllers()) {
+          each.extensionOutdated();
+        }
+      }
+    }) ?? (() => undefined);
 
   window.once('ready-to-show', () => window.show());
   window.on('closed', () => {
-    created.dispose();
     stopWatchingChrome();
-    chromeSite.destroy();
+    stopWatchingVersion();
+    created.dispose();
     viewer.destroy();
-    controller = null;
+    tabs = null;
     pageInfoWindow = null;
     lastCopiedAddress = null;
   });
 
   pageInfoWindow = window;
-  controller = created;
-  return created;
+  tabs = created;
+  return created.active();
 }

@@ -11,10 +11,9 @@ const event = (name: string) => ({
 });
 
 let tabStatus: string;
-let tabActive: boolean;
 let sendEvent: ReturnType<typeof vi.fn>;
 let tabs: {
-  checkedTabId: ReturnType<typeof vi.fn>;
+  siteOfTab: ReturnType<typeof vi.fn>;
   noteCommitted: ReturnType<typeof vi.fn>;
   tabRemoved: ReturnType<typeof vi.fn>;
   isCapturing: ReturnType<typeof vi.fn>;
@@ -22,10 +21,9 @@ let tabs: {
 
 beforeEach(() => {
   tabStatus = 'complete';
-  tabActive = false;
   sendEvent = vi.fn();
   tabs = {
-    checkedTabId: vi.fn(async () => 7),
+    siteOfTab: vi.fn(async (tabId: number) => (tabId === 7 ? '1' : null)),
     noteCommitted: vi.fn(async () => undefined),
     tabRemoved: vi.fn(async () => undefined),
     isCapturing: vi.fn(() => false),
@@ -39,13 +37,8 @@ beforeEach(() => {
       onErrorOccurred: event('error'),
     },
     tabs: {
-      get: vi.fn(async () => ({ status: tabStatus, active: tabActive })),
+      get: vi.fn(async () => ({ status: tabStatus })),
       onRemoved: event('removed'),
-      onActivated: event('activated'),
-    },
-    windows: {
-      WINDOW_ID_NONE: -1,
-      onFocusChanged: event('focus'),
     },
   };
   watchTabs({ chrome, tabs, sendEvent });
@@ -56,8 +49,8 @@ const page = { tabId: 7, frameId: 0, url: 'https://a.com/' };
 describe('tab events', () => {
   it('passes on a new page in the checked tab', async () => {
     await listeners.committed(page);
-    expect(sendEvent).toHaveBeenCalledExactlyOnceWith('committed');
-    expect(tabs.noteCommitted).toHaveBeenCalledOnce();
+    expect(sendEvent).toHaveBeenCalledExactlyOnceWith('committed', '1');
+    expect(tabs.noteCommitted).toHaveBeenCalledExactlyOnceWith('1');
   });
 
   it('passes on a finished load and in-place changes', async () => {
@@ -65,9 +58,9 @@ describe('tab events', () => {
     await listeners.history(page);
     await listeners.fragment(page);
     expect(sendEvent.mock.calls).toEqual([
-      ['loaded'],
-      ['changedInPlace'],
-      ['changedInPlace'],
+      ['loaded', '1'],
+      ['changedInPlace', '1'],
+      ['changedInPlace', '1'],
     ]);
   });
 
@@ -93,13 +86,13 @@ describe('tab events', () => {
 
   it('reports a failed load', async () => {
     await listeners.error({ ...page, error: 'net::ERR_NAME_NOT_RESOLVED' });
-    expect(sendEvent).toHaveBeenCalledExactlyOnceWith('failed');
+    expect(sendEvent).toHaveBeenCalledExactlyOnceWith('failed', '1');
   });
 
   it('reports a load you stopped as cancelled', async () => {
     tabStatus = 'complete';
     await listeners.error({ ...page, error: 'net::ERR_ABORTED' });
-    expect(sendEvent).toHaveBeenCalledExactlyOnceWith('cancelled');
+    expect(sendEvent).toHaveBeenCalledExactlyOnceWith('cancelled', '1');
   });
 
   it('stays quiet when a newer load replaced the old one', async () => {
@@ -113,25 +106,8 @@ describe('tab events', () => {
     expect(tabs.tabRemoved).toHaveBeenCalledWith(7);
   });
 
-  it('says when you switch tabs or Chrome windows', () => {
-    listeners.activated({ tabId: 3, windowId: 1 });
-    listeners.focus(2 as unknown as Record<string, unknown>);
-    expect(sendEvent.mock.calls).toEqual([
-      ['activeTabChanged'],
-      ['activeTabChanged'],
-    ]);
-  });
-
-  it('ignores the tab switches a screenshot makes', () => {
-    tabs.isCapturing.mockReturnValue(true);
-    listeners.activated({ tabId: 3, windowId: 1 });
-    listeners.focus(2 as unknown as Record<string, unknown>);
-    expect(sendEvent).not.toHaveBeenCalled();
-  });
-
   it('ignores the loads a screenshot as a device makes', async () => {
     tabs.isCapturing.mockReturnValue(true);
-    tabActive = true;
     await listeners.committed(page);
     await listeners.committed({ ...page, tabId: 8 });
     await listeners.completed(page);
@@ -141,14 +117,8 @@ describe('tab events', () => {
     expect(tabs.noteCommitted).not.toHaveBeenCalled();
   });
 
-  it('stays quiet when Chrome loses focus', () => {
-    listeners.focus(-1 as unknown as Record<string, unknown>);
-    expect(sendEvent).not.toHaveBeenCalled();
-  });
-
-  it('says when the tab you are looking at gets a new page', async () => {
-    tabActive = true;
+  it('says nothing about tabs no site reads', async () => {
     await listeners.committed({ ...page, tabId: 8 });
-    expect(sendEvent).toHaveBeenCalledExactlyOnceWith('activeTabChanged');
+    expect(sendEvent).not.toHaveBeenCalled();
   });
 });

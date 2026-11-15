@@ -30,6 +30,7 @@ export const ACTIONS = [
   'showLink',
   'openTabs',
   'capture',
+  'forget',
   'setSuggestions',
   'image',
 ];
@@ -43,8 +44,15 @@ export const EVENTS = [
   'failed',
   'cancelled',
   'closed',
-  'activeTabChanged',
 ];
+
+// Each tab in Page Info names itself with a site id, so every request and
+// event belongs to one of them. A request without one uses DEFAULT_SITE.
+export const DEFAULT_SITE = 'main';
+
+export function isSite(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(value);
+}
 
 // Chrome suspends a quiet service worker after 30 seconds.
 export const PING_MS = 20000;

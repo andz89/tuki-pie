@@ -7,7 +7,7 @@ import { createTabs } from './tabs.js';
 const ALARM = 'pie-connect';
 
 let connection = null;
-const sendEvent = (name) => connection?.sendEvent(name);
+const sendEvent = (name, site) => connection?.sendEvent(name, site);
 
 const tabs = createTabs({ chrome, sendEvent });
 const suggestions = createSuggestionStore(chrome.storage.local);
@@ -25,6 +25,7 @@ connection = createConnection({
     openTabs: tabs.openTabs,
     activeTab: tabs.activeTab,
     capture: tabs.capture,
+    forget: tabs.forget,
     setSuggestions: suggestions.save,
     image: createImageFetcher(),
   }),

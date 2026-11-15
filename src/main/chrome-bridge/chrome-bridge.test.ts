@@ -288,13 +288,14 @@ describe('requests and events', () => {
     await expect(bridge.request('runScript')).rejects.toThrow();
   });
 
-  it('passes events on', async () => {
+  it('passes events on with their site, or null from an old extension', async () => {
     const ext = await connected({});
     const names: string[] = [];
-    bridge.onEvent((name) => names.push(name));
+    bridge.onEvent((name, site) => names.push(`${name}:${site}`));
+    ext.connection.sendEvent('loaded', '2');
     ext.connection.sendEvent('loaded');
-    await until(() => names.length === 1);
-    expect(names).toEqual(['loaded']);
+    await until(() => names.length === 2);
+    expect(names).toEqual(['loaded:2', 'loaded:null']);
   });
 
   it('drops events with an unknown name', async () => {
