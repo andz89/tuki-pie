@@ -1,5 +1,4 @@
 import { BrowserWindow, clipboard } from 'electron';
-import { sameAddress } from '../../../packages/pie-extension/protocol.js';
 import path from 'node:path';
 import { IpcChannels } from '../../shared/ipc-channels';
 import type { OnTop } from '../../shared/schemas/settings.schema';
@@ -101,42 +100,6 @@ export async function openPageInfo(): Promise<void> {
   active.check(choice.address);
 }
 
-// Ctrl+Tab through several tabs only checks the one you stop on.
-const FOLLOW_TAB_MS = 300;
-let followTimer: ReturnType<typeof setTimeout> | undefined;
-
-// While the window is open, switching Chrome tabs checks the new active tab.
-function followActiveTab(): void {
-  clearTimeout(followTimer);
-  followTimer = setTimeout(() => void checkActiveTab(), FOLLOW_TAB_MS);
-}
-
-// Runs from a timer, so nothing would catch a failure here.
-async function checkActiveTab(): Promise<void> {
-  try {
-    await checkActiveTabNow();
-  } catch (error) {
-    console.warn('Could not check the active Chrome tab:', error);
-  }
-}
-
-async function checkActiveTabNow(): Promise<void> {
-  const active = controller;
-  if (!active?.state().chromeConnected) {
-    return;
-  }
-  const checksBefore = active.checkCount();
-  const activeTab = await activeChromeTab();
-  if (active !== controller || active.checkCount() !== checksBefore) {
-    return;
-  }
-  const shown = active.state().address;
-  if (activeTab === null || (shown !== null && sameAddress(activeTab, shown))) {
-    return;
-  }
-  active.check(activeTab);
-}
-
 function showOrCreateWindow(): PageInfoController {
   if (pageInfoWindow && controller) {
     if (pageInfoWindow.isMinimized()) {
@@ -213,19 +176,11 @@ function showOrCreateWindow(): PageInfoController {
     bridge?.onStatus((status) =>
       created.setChromeConnected(status === 'connected'),
     ) ?? (() => undefined);
-  const stopFollowingTabs =
-    bridge?.onEvent((name) => {
-      if (name === 'activeTabChanged') {
-        followActiveTab();
-      }
-    }) ?? (() => undefined);
 
   window.once('ready-to-show', () => window.show());
   window.on('closed', () => {
     created.dispose();
     stopWatchingChrome();
-    stopFollowingTabs();
-    clearTimeout(followTimer);
     chromeSite.destroy();
     viewer.destroy();
     controller = null;
