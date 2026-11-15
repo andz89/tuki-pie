@@ -7,7 +7,7 @@ import {
   MAX_PAGE_LIST,
   MAX_PAGE_URL,
 } from '../../shared/schemas/page-info.schema';
-import { MAX_OPEN_LINKS } from '../../shared/types';
+import { MAX_OPEN_LINKS, MAX_SECTION_SELECTOR } from '../../shared/types';
 import type { PageInfoUpdate, PageScreenshot } from '../../shared/types';
 import { SAVED_TO, saveToPictures } from '../screenshot/screenshot';
 import { pageScreenshotFileName } from '../screenshot/screenshot-geometry';
@@ -116,6 +116,7 @@ export function registerPageInfoIpc(settings: SettingsService): void {
       z.object({
         device: z.enum([DESKTOP, ...DEVICE_NAMES]),
         reload: z.boolean(),
+        section: z.string().max(MAX_SECTION_SELECTOR),
       }),
     ]),
     async (size): Promise<PageScreenshot> => {
@@ -137,6 +138,8 @@ export function registerPageInfoIpc(settings: SettingsService): void {
           stitched: shot.stitched,
           stitchReason: shot.stitchReason,
           device: shot.device,
+          section: shot.section,
+          matches: shot.matches,
         };
       } finally {
         focusPageInfoWindow();
@@ -149,7 +152,7 @@ export function registerPageInfoIpc(settings: SettingsService): void {
     const title = controller.state().report?.meta.title ?? '';
     await saveToPictures(
       jpegBytes(shot.dataUrl),
-      pageScreenshotFileName(title, new Date(), shot.device),
+      pageScreenshotFileName(title, new Date(), shot.device, shot.section),
       {
         title: 'Screenshot saved',
         body: `Saved to ${SAVED_TO}. Click to show it.`,

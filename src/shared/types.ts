@@ -113,16 +113,25 @@ export interface PageScreenshot {
   stitchReason: string | null;
   // The device it was taken as, or "" for the tab as it is.
   device: string;
+  // The CSS selector of the section taken, or "" for the whole page.
+  section: string;
+  // How many elements matched the section's selector (the first is taken).
+  matches: number | null;
   // A small picture of the top, for the dashboard.
   thumbDataUrl: string;
 }
 
-// The size picked before taking one. reload: load the page as the device
+// What is picked before taking one. reload: load the page as the device
 // first, for sites that choose their mobile version on the server.
+// section: a CSS selector for one part of the page, or "" for all of it.
 export interface CaptureSize {
   device: string;
   reload: boolean;
+  section: string;
 }
+
+// The longest section selector. The extension keeps the same limit.
+export const MAX_SECTION_SELECTOR = 500;
 
 // What "Show on page" found: the link marked, a link hidden on the page (a
 // closed menu, say), or no such link any more.

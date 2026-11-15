@@ -41,6 +41,14 @@ const CAPTURE_PROBLEMS: Record<string, string> = {
   timeout:
     'The page took too long to capture. Try again once it has finished loading.',
 };
+// The section's problems name the selector the user typed.
+const SECTION_PROBLEMS: Record<string, (section: string) => string> = {
+  'no-section': (section) => `Nothing on the page matches ${section}.`,
+  'bad-selector': () =>
+    "That isn't a CSS selector. Use .class, #id or another selector.",
+  'empty-section': (section) =>
+    `The element matching ${section} isn't shown on the page.`,
+};
 const COULD_NOT_CAPTURE = 'Could not take the screenshot.';
 
 const Captured = z.object({
@@ -51,15 +59,19 @@ const Captured = z.object({
   method: z.enum(['debugger', 'stitched']),
   // Why the debugger didn't work, in Chrome's words.
   reason: z.string().max(500).nullish(),
+  // How many elements matched the section's selector.
+  matches: z.number().int().min(1).nullish(),
 });
 const CaptureFailed = z.object({ error: z.string() });
 
-// A picture of the whole checked page, as the extension took it.
+// A picture of the checked page, or of one section, as the extension took it.
 export interface PageCapture {
   dataUrl: string;
   stitched: boolean;
   stitchReason: string | null;
   device: string;
+  section: string;
+  matches: number | null;
 }
 
 // The Chrome tab every check runs in.
@@ -206,16 +218,18 @@ export class PageInfoController {
       );
     }
     const page = this.pageCount;
-    const raw = await this.site.capture(size).catch(() => null);
+    const section = size.section.trim();
+    const raw = await this.site.capture({ ...size, section }).catch(() => null);
     if (this.isDisposed || page !== this.pageCount) {
       throw new UserError(PAGE_CHANGED);
     }
     const shot = Captured.safeParse(raw);
     if (!shot.success) {
       const failed = CaptureFailed.safeParse(raw);
+      const error = failed.success ? failed.data.error : '';
       throw new UserError(
-        (failed.success && CAPTURE_PROBLEMS[failed.data.error]) ||
-          COULD_NOT_CAPTURE,
+        SECTION_PROBLEMS[error]?.(section) ??
+          (CAPTURE_PROBLEMS[error] || COULD_NOT_CAPTURE),
       );
     }
     this.captured = {
@@ -223,6 +237,8 @@ export class PageInfoController {
       stitched: shot.data.method === 'stitched',
       stitchReason: shot.data.reason ?? null,
       device: size.device,
+      section,
+      matches: section ? (shot.data.matches ?? null) : null,
     };
     return this.captured;
   }

@@ -45,7 +45,8 @@ beforeEach(() => {
     update: update({}),
     problem: null,
     screenshot: NO_SCREENSHOT,
-    captureSize: { device: '', reload: false },
+    captureSize: { device: '', reload: false, section: '' },
+    sectionKind: 'class',
   });
 });
 
@@ -133,6 +134,8 @@ describe('the Screenshot tab', () => {
     stitched: false,
     stitchReason: null,
     device: '',
+    section: '',
+    matches: null,
   };
   const { dataUrl: _dataUrl, ...KEPT } = TAKEN;
   const SHOT = { ...KEPT, imageUrl: 'blob:kept' };
@@ -181,7 +184,45 @@ describe('the Screenshot tab', () => {
     expect(pageInfoBridge.capture).toHaveBeenCalledWith({
       device: 'Pixel 9',
       reload: true,
+      section: '',
     });
+  });
+
+  it.each([
+    [
+      'class',
+      'et_pb_section et_flex_section',
+      '.et_pb_section.et_flex_section',
+    ],
+    ['id', 'hero', '#hero'],
+    ['mixed', '.pricing #hero', '.pricing #hero'],
+  ] as const)(
+    'asks for the section as %s names',
+    async (kind, typed, selector) => {
+      vi.mocked(pageInfoBridge.capture).mockResolvedValue({
+        ok: true,
+        value: TAKEN,
+      });
+      store().setSectionKind(kind);
+      store().setCaptureSize({ section: typed });
+      await store().takeScreenshot();
+      expect(pageInfoBridge.capture).toHaveBeenCalledWith({
+        device: '',
+        reload: false,
+        section: selector,
+      });
+      // The field keeps what was typed.
+      expect(store().captureSize.section).toBe(typed);
+    },
+  );
+
+  it('says what is wrong with the section without asking Chrome', async () => {
+    store().setSectionKind('id');
+    store().setCaptureSize({ section: 'a b' });
+    await store().takeScreenshot();
+    expect(pageInfoBridge.capture).not.toHaveBeenCalled();
+    expect(store().screenshot.problem).toContain('An id has no spaces');
+    expect(store().screenshot.status).toBe('none');
   });
 
   it('asks only once while one is being taken', async () => {

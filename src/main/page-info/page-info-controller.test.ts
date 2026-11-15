@@ -212,7 +212,7 @@ describe('reading the page', () => {
     controller.sitePageCommitted();
     controller.siteLoaded();
     await flush();
-    await controller.capture({ device: '', reload: false });
+    await controller.capture({ device: '', reload: false, section: '' });
     const id = controller.state().reportId;
     site.read.mockResolvedValue(page('https://example.com/#reviews'));
     controller.sitePageChangedInPlace();
@@ -227,7 +227,7 @@ describe('reading the page', () => {
     controller.sitePageCommitted();
     controller.siteLoaded();
     await flush();
-    await controller.capture({ device: '', reload: false });
+    await controller.capture({ device: '', reload: false, section: '' });
     site.read.mockResolvedValue(page('https://example.com/pricing'));
     controller.sitePageChangedInPlace();
     await vi.advanceTimersByTimeAsync(500);
@@ -707,7 +707,7 @@ describe('counting checks', () => {
 });
 
 describe('taking a screenshot', () => {
-  const DESKTOP_SIZE = { device: '', reload: false };
+  const DESKTOP_SIZE = { device: '', reload: false, section: '' };
   const checked = async () => {
     controller.check('example.com');
     controller.sitePageCommitted();
@@ -729,13 +729,15 @@ describe('taking a screenshot', () => {
       stitched: false,
       stitchReason: null,
       device: '',
+      section: '',
+      matches: null,
     });
     expect(controller.capturedImage()?.dataUrl).toBe(SHOT.dataUrl);
   });
 
   it('asks Chrome for the picked size and keeps its name', async () => {
     await checked();
-    const size = { device: 'iPhone 16', reload: true };
+    const size = { device: 'iPhone 16', reload: true, section: '' };
     await expect(controller.capture(size)).resolves.toMatchObject({
       device: 'iPhone 16',
     });
@@ -748,6 +750,40 @@ describe('taking a screenshot', () => {
     await expect(controller.capture(DESKTOP_SIZE)).rejects.toThrow(
       'or choose Desktop',
     );
+  });
+
+  it('asks for the section without the spaces around it, and keeps it', async () => {
+    await checked();
+    site.capture.mockResolvedValueOnce({ ...SHOT, matches: 3 });
+    await expect(
+      controller.capture({ ...DESKTOP_SIZE, section: '  .pricing ' }),
+    ).resolves.toMatchObject({ section: '.pricing', matches: 3 });
+    expect(site.capture).toHaveBeenCalledWith({
+      ...DESKTOP_SIZE,
+      section: '.pricing',
+    });
+  });
+
+  it('ignores a match count for the whole page', async () => {
+    await checked();
+    site.capture.mockResolvedValueOnce({ ...SHOT, matches: 3 });
+    await expect(controller.capture(DESKTOP_SIZE)).resolves.toMatchObject({
+      section: '',
+      matches: null,
+    });
+  });
+
+  it.each([
+    ['no-section', 'Nothing on the page matches .pricing.'],
+    ['bad-selector', "That isn't a CSS selector."],
+    ['empty-section', "The element matching .pricing isn't shown on the page."],
+  ])('explains %s, naming the section', async (error, text) => {
+    await checked();
+    site.capture.mockResolvedValueOnce({ error });
+    await expect(
+      controller.capture({ ...DESKTOP_SIZE, section: '.pricing' }),
+    ).rejects.toThrow(text);
+    expect(controller.capturedImage()).toBeNull();
   });
 
   it('says when it was stitched', async () => {

@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { LinkFilter } from '../../shared/link-rules';
 import { DEFAULT_SETTINGS } from '../../shared/schemas/settings.schema';
 import { DESKTOP } from '../../shared/devices';
+import { sectionSelector } from '../../shared/section-selector';
+import type { SectionKind } from '../../shared/section-selector';
 import type {
   CaptureSize,
   PageInfoUpdate,
@@ -57,9 +59,12 @@ interface PageInfoState {
   toggleOnTop: () => Promise<void>;
   setLinkFilter: (filter: LinkFilter) => Promise<void>;
   screenshot: ScreenshotState;
-  // Kept across pages, like the choice in a menu.
+  // Kept across pages, like the choice in a menu. section is the text as
+  // typed; sectionKind says how it is read.
   captureSize: CaptureSize;
   setCaptureSize: (changes: Partial<CaptureSize>) => void;
+  sectionKind: SectionKind;
+  setSectionKind: (kind: SectionKind) => void;
   takeScreenshot: () => Promise<void>;
   saveScreenshot: () => Promise<void>;
   copyScreenshot: () => Promise<void>;
@@ -81,10 +86,13 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
   problem: null,
   settings: DEFAULT_SETTINGS,
   screenshot: NO_SCREENSHOT,
-  captureSize: { device: DESKTOP, reload: false },
+  captureSize: { device: DESKTOP, reload: false, section: '' },
 
   setCaptureSize: (changes) =>
     set({ captureSize: { ...get().captureSize, ...changes } }),
+
+  sectionKind: 'class',
+  setSectionKind: (kind) => set({ sectionKind: kind }),
 
   start: async () => {
     stopListening?.();
@@ -149,6 +157,18 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
     if (get().screenshot.status === 'taking') {
       return;
     }
+    const { captureSize, sectionKind } = get();
+    const section = sectionSelector(sectionKind, captureSize.section);
+    if ('error' in section) {
+      set({
+        screenshot: {
+          ...get().screenshot,
+          problem: section.error,
+          notice: null,
+        },
+      });
+      return;
+    }
     set({
       screenshot: {
         ...get().screenshot,
@@ -157,7 +177,10 @@ export const usePageInfoStore = create<PageInfoState>()((set, get) => ({
         notice: null,
       },
     });
-    const result = await pageInfoBridge.capture(get().captureSize);
+    const result = await pageInfoBridge.capture({
+      ...captureSize,
+      section: section.selector,
+    });
     // Read again: the page may have changed during the capture, and its old
     // picture must not come back.
     const now = get().screenshot;

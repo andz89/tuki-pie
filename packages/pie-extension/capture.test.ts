@@ -5,11 +5,13 @@ import {
   MAX_IMAGE_HEIGHT,
   SCROLL_PAUSE_MS,
   STALE_RETRIES,
+  clipBox,
   createCapture,
   fitScale,
   pageScrollState,
   pageScrollTo,
   scrollThrough,
+  sectionBox,
 } from './capture.js';
 
 interface FakeTab {
@@ -353,6 +355,180 @@ describe('capturing as a device', () => {
   });
 });
 
+describe('capturing a section through the debugger', () => {
+  // The page answers the section's measuring with `box`, and 1 otherwise.
+  const pageWithSection = (box: unknown) => {
+    chrome.debugger.sendCommand.mockImplementation(
+      async (
+        _target: unknown,
+        method: string,
+        params?: { expression?: string },
+      ) => {
+        if (
+          method === 'Runtime.evaluate' &&
+          params?.expression?.includes('querySelectorAll')
+        ) {
+          return { result: { value: box } };
+        }
+        return commands[method];
+      },
+    );
+  };
+
+  it('clips the picture to the first matching element', async () => {
+    pageWithSection({ x: 40.5, y: 1200, width: 600, height: 300, matches: 3 });
+    const shot = await createCapture({ chrome }).capture(1, {
+      selector: '.pricing',
+    });
+    expect(shot).toEqual({
+      dataUrl: 'data:image/jpeg;base64,JPEGDATA',
+      method: 'debugger',
+      matches: 3,
+    });
+    expect(chrome.debugger.sendCommand).toHaveBeenCalledWith(
+      { tabId: 1 },
+      'Page.captureScreenshot',
+      {
+        format: 'jpeg',
+        quality: 80,
+        clip: { x: 40, y: 1200, width: 601, height: 300, scale: 1 },
+      },
+    );
+  });
+
+  it('passes the selector to the page as text, never as code', async () => {
+    pageWithSection({ x: 0, y: 0, width: 10, height: 10, matches: 1 });
+    await createCapture({ chrome }).capture(1, { selector: `'); alert(1)//` });
+    const call = chrome.debugger.sendCommand.mock.calls.find(([, , params]) =>
+      (params as { expression?: string } | undefined)?.expression?.includes(
+        'querySelectorAll',
+      ),
+    );
+    const params = call?.[2] as { expression: string } | undefined;
+    expect(params?.expression).toMatch(/\)\("'\); alert\(1\)\/\/"\)$/);
+  });
+
+  it.each(['no-section', 'bad-selector', 'empty-section'])(
+    'reports %s without stitching, and puts the page back',
+    async (error) => {
+      pageWithSection({ error });
+      await expect(
+        createCapture({ chrome }).capture(1, { selector: '.x' }),
+      ).resolves.toEqual({ error });
+      expect(chrome.tabs.captureVisibleTab).not.toHaveBeenCalled();
+      expect(chrome.debugger.sendCommand).not.toHaveBeenCalledWith(
+        { tabId: 1 },
+        'Page.captureScreenshot',
+        expect.anything(),
+      );
+      expect(chrome.debugger.sendCommand).toHaveBeenCalledWith(
+        { tabId: 1 },
+        'Emulation.clearDeviceMetricsOverride',
+        undefined,
+      );
+      expect(chrome.debugger.detach).toHaveBeenCalled();
+    },
+  );
+
+  it('says a section below what could be drawn is not shown', async () => {
+    pageWithSection({ x: 0, y: 9000, width: 100, height: 100, matches: 1 });
+    await expect(
+      createCapture({ chrome }).capture(1, { selector: '.x' }),
+    ).resolves.toEqual({ error: 'empty-section' });
+  });
+
+  it('takes the whole page when the selector is only spaces', async () => {
+    await createCapture({ chrome }).capture(1, { selector: '   ' });
+    expect(chrome.debugger.sendCommand).toHaveBeenCalledWith(
+      { tabId: 1 },
+      'Page.captureScreenshot',
+      expect.objectContaining({
+        clip: { x: 0, y: 0, width: 1280, height: 4000, scale: 1 },
+      }),
+    );
+  });
+});
+
+describe('clipBox', () => {
+  it('rounds out to whole pixels', () => {
+    expect(clipBox({ x: 1.5, y: 2.2, width: 3, height: 4 }, 100, 100)).toEqual({
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 5,
+    });
+  });
+
+  it('cuts the box to the picture', () => {
+    expect(clipBox({ x: 80, y: 90, width: 50, height: 50 }, 100, 100)).toEqual({
+      x: 80,
+      y: 90,
+      width: 20,
+      height: 10,
+    });
+  });
+
+  it('is null when none of the box is in the picture', () => {
+    expect(clipBox({ x: 0, y: 200, width: 50, height: 50 }, 100, 100)).toBe(
+      null,
+    );
+  });
+});
+
+describe('sectionBox', () => {
+  const page = (elements: { rect: object }[], error = false) => {
+    vi.stubGlobal('scrollX', 0);
+    vi.stubGlobal('scrollY', 500);
+    vi.stubGlobal('document', {
+      documentElement: { scrollWidth: 1000, scrollHeight: 3000 },
+      body: { scrollHeight: 3000 },
+      querySelectorAll: () => {
+        if (error) throw new Error('not a selector');
+        return elements.map((each) => ({
+          getBoundingClientRect: () => each.rect,
+        }));
+      },
+    });
+  };
+  const rect = (left: number, top: number, width: number, height: number) => ({
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+  });
+
+  it('gives the first match in page coordinates, and how many matched', () => {
+    page([{ rect: rect(10, 100, 200, 50) }, { rect: rect(0, 0, 5, 5) }]);
+    expect(sectionBox('.a')).toEqual({
+      x: 10,
+      y: 600,
+      width: 200,
+      height: 50,
+      matches: 2,
+    });
+  });
+
+  it('cuts an element wider than the page to the page', () => {
+    page([{ rect: rect(-50, 0, 2000, 100) }]);
+    expect(sectionBox('.a')).toMatchObject({ x: 0, width: 1000 });
+  });
+
+  it('says when nothing matches', () => {
+    page([]);
+    expect(sectionBox('.a')).toEqual({ error: 'no-section' });
+  });
+
+  it('says when the selector is not one', () => {
+    page([], true);
+    expect(sectionBox('..')).toEqual({ error: 'bad-selector' });
+  });
+
+  it('says when the element has no size', () => {
+    page([{ rect: rect(10, 10, 0, 0) }]);
+    expect(sectionBox('.a')).toEqual({ error: 'empty-section' });
+  });
+});
+
 describe('a capture of ours that never detached', () => {
   it('is taken back, and the capture goes on in one pass', async () => {
     targets = [{ tabId: 1, attached: true, extensionId: 'pie' }];
@@ -561,6 +737,109 @@ describe('when the debugger cannot attach', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('stitches only the screens and columns of a section', async () => {
+    vi.useFakeTimers();
+    try {
+      stubCanvas();
+      const sizes: number[][] = [];
+      const draws: number[][] = [];
+      vi.stubGlobal(
+        'OffscreenCanvas',
+        class {
+          constructor(
+            public width: number,
+            public height: number,
+          ) {
+            sizes.push([width, height]);
+          }
+          getContext() {
+            return {
+              drawImage: (_image: unknown, ...rest: number[]) => {
+                draws.push(rest);
+              },
+            };
+          }
+          async convertToBlob() {
+            return new Blob(['x'], { type: 'image/jpeg' });
+          }
+        },
+      );
+      // Three screens tall; the section starts on the second.
+      let y = 0;
+      chrome.scripting.executeScript.mockImplementation(
+        async ({
+          func,
+          args,
+        }: {
+          func: { name: string };
+          args?: unknown[];
+        }) => {
+          if (func.name === 'sectionBox') {
+            return [
+              {
+                result: {
+                  x: 100,
+                  y: 900,
+                  width: 500,
+                  height: 1000,
+                  matches: 2,
+                },
+              },
+            ];
+          }
+          if (typeof args?.[0] === 'number') y = Math.min(args[0], 1600);
+          return [
+            {
+              result: {
+                y,
+                viewportWidth: 1000,
+                viewportHeight: 800,
+                contentWidth: 1000,
+                pageHeight: 2400,
+              },
+            },
+          ];
+        },
+      );
+      let n = 0;
+      chrome.tabs.captureVisibleTab.mockImplementation(
+        async () => `data:image/png;base64,${n++}`,
+      );
+      const taking = createCapture({ chrome }).capture(1, {
+        selector: '.pricing',
+      });
+      await vi.runAllTimersAsync();
+      await expect(taking).resolves.toMatchObject({
+        method: 'stitched',
+        matches: 2,
+      });
+      expect(chrome.tabs.captureVisibleTab).toHaveBeenCalledTimes(2);
+      expect(sizes[0]).toEqual([500, 1000]);
+      // Its columns, drawn from the top of the picture, then the rest below.
+      expect(draws[0]).toEqual([100, 0, 500, 800, 0, 0, 500, 800]);
+      expect(draws[1]).toEqual([100, 0, 500, 800, 0, 700, 500, 800]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says when no element matches, without taking a screen', async () => {
+    chrome.scripting.executeScript.mockImplementation(
+      async ({ func }: { func: { name: string } }) => [
+        {
+          result:
+            func.name === 'sectionBox'
+              ? { error: 'no-section' }
+              : { y: 0, viewportWidth: 1000, viewportHeight: 800 },
+        },
+      ],
+    );
+    await expect(
+      createCapture({ chrome }).capture(1, { selector: '.missing' }),
+    ).resolves.toEqual({ error: 'no-section' });
+    expect(chrome.tabs.captureVisibleTab).not.toHaveBeenCalled();
   });
 
   it('scrolls and stitches instead', async () => {

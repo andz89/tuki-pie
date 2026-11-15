@@ -56,22 +56,32 @@ export function screenshotFileName(time: Date): string {
 }
 
 const MAX_TITLE_LENGTH = 60;
+const MAX_SECTION_LENGTH = 40;
 
-// A whole web page: its title, cleaned of characters Windows refuses, then
-// the moment it was taken.
-// With the device's name when it was taken as one: "Title iPhone 16 ...".
-export function pageScreenshotFileName(
-  title: string,
-  time: Date,
-  device = '',
-): string {
-  const name = title
+// Text cleaned of characters Windows refuses, cut to `length`, without the
+// trailing dots and spaces Windows drops.
+const cleanName = (text: string, length: number) =>
+  text
     // oxlint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, MAX_TITLE_LENGTH)
+    .slice(0, length)
     .replace(/[. ]+$/, '');
+
+// A web page: its title, cleaned of characters Windows refuses, then the
+// moment it was taken.
+// With the device's name when it was taken as one: "Title iPhone 16 ...".
+// With the section's selector when only that was taken: "Title .pricing ...".
+export function pageScreenshotFileName(
+  title: string,
+  time: Date,
+  device = '',
+  section = '',
+): string {
+  const name = cleanName(title, MAX_TITLE_LENGTH);
   const as = device ? ` ${device}` : '';
-  return `${name || 'Web page'}${as} ${timeStamp(time)}.jpg`;
+  const part = cleanName(section, MAX_SECTION_LENGTH);
+  const of = part ? ` ${part}` : '';
+  return `${name || 'Web page'}${as}${of} ${timeStamp(time)}.jpg`;
 }

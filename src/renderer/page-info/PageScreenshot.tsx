@@ -1,5 +1,11 @@
 import { useRef } from 'react';
 import { DESKTOP, DEVICE_GROUPS } from '../../shared/devices';
+import {
+  SECTION_KINDS,
+  SECTION_KIND_LABELS,
+} from '../../shared/section-selector';
+import type { SectionKind } from '../../shared/section-selector';
+import { MAX_SECTION_SELECTOR } from '../../shared/types';
 import { usePageInfoStore } from './page-info.store';
 
 const STITCHED_NOTE =
@@ -59,6 +65,77 @@ function SizePicker({ disabled }: { disabled: boolean }) {
   );
 }
 
+// What the field asks for in each kind.
+const SECTION_HELP: Record<SectionKind, { placeholder: string; note: string }> =
+  {
+    class: {
+      placeholder: 'et_pb_section et_flex_section',
+      note: 'One or more class names of the same element, without periods.',
+    },
+    id: {
+      placeholder: 'hero',
+      note: "The element's id, without #.",
+    },
+    mixed: {
+      placeholder: '.pricing #hero',
+      note: 'Put a period before each class (.name) and a # before each id (#name).',
+    },
+  };
+
+// One part of the page instead of all of it: class names, an id, or both as
+// CSS. Enter takes the picture, like the button.
+function SectionField({
+  disabled,
+  onEnter,
+}: {
+  disabled: boolean;
+  onEnter: () => void;
+}) {
+  const section = usePageInfoStore((state) => state.captureSize.section);
+  const setSize = usePageInfoStore((state) => state.setCaptureSize);
+  const kind = usePageInfoStore((state) => state.sectionKind);
+  const setKind = usePageInfoStore((state) => state.setSectionKind);
+  const help = SECTION_HELP[kind];
+  return (
+    <div className="screenshot-section">
+      <span id="screenshot-section-label">Section</span>
+      <div className="screenshot-section-row">
+        <select
+          value={kind}
+          disabled={disabled}
+          aria-label="Section is given as"
+          onChange={(event) => setKind(event.target.value as SectionKind)}
+        >
+          {SECTION_KINDS.map((each) => (
+            <option key={each} value={each}>
+              {SECTION_KIND_LABELS[each]}
+            </option>
+          ))}
+        </select>
+        <input
+          type="text"
+          value={section}
+          disabled={disabled}
+          maxLength={MAX_SECTION_SELECTOR}
+          spellCheck={false}
+          placeholder={help.placeholder}
+          aria-labelledby="screenshot-section-label"
+          aria-describedby="screenshot-section-note"
+          onChange={(event) => setSize({ section: event.target.value })}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              onEnter();
+            }
+          }}
+        />
+      </div>
+      <span id="screenshot-section-note" className="info-note">
+        {help.note} Leave empty for the whole page.
+      </span>
+    </div>
+  );
+}
+
 // The whole checked page as a picture. Only the button takes one: opening
 // this tab never does, since it brings the Chrome tab forward for a moment.
 export function PageScreenshot({
@@ -88,10 +165,18 @@ export function PageScreenshot({
   return (
     <div className="page-screenshot">
       <SizePicker disabled={taking} />
+      <SectionField
+        disabled={taking}
+        onEnter={() => {
+          if (chromeConnected) {
+            void take();
+          }
+        }}
+      />
       {shot === null ? (
         <div className="page-screenshot-start">
           <p className="info-note">
-            A picture of the whole page, as Chrome shows it.
+            A picture of the whole page, or of one section, as Chrome shows it.
           </p>
           {takeButton('Take screenshot')}
         </div>
@@ -100,10 +185,16 @@ export function PageScreenshot({
           <p>
             <strong>
               {shot.device && `${shot.device}: `}
+              {shot.section && `Section ${shot.section}: `}
               {shot.width.toLocaleString()} x {shot.height.toLocaleString()} px
             </strong>{' '}
             · {fileSize(shot.bytes)}
           </p>
+          {shot.matches !== null && shot.matches > 1 && (
+            <p className="info-note">
+              {shot.matches.toLocaleString()} elements match. This is the first.
+            </p>
+          )}
           <div className="link-actions">
             {takeButton('Retake')}
             <button

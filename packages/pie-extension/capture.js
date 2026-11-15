@@ -1,4 +1,5 @@
-// A picture of the whole page, as Chrome draws it, ported from tuki.
+// A picture of the whole page, or of one element on it, as Chrome draws it,
+// ported from tuki.
 // First through Chrome's debugger, which renders the page in one pass, so
 // sticky headers appear once and nothing is stitched. When Chrome won't let
 // the debugger attach (DevTools open, another extension on the tab), the page
@@ -36,6 +37,9 @@ export const CAPTURE_ERRORS = [
   'not-allowed',
   'not-drawn',
   'no-device',
+  'bad-selector',
+  'no-section',
+  'empty-section',
   'timeout',
   'failed',
 ];
@@ -131,6 +135,58 @@ function restorePage(startY) {
   }
   document.documentElement.style.removeProperty('scroll-behavior');
   scrollTo(0, startY);
+}
+
+// The longest section selector taken.
+export const MAX_SELECTOR_LENGTH = 500;
+
+// In the page: the first element matching `selector`, as a box in page
+// coordinates cut to the page, and how many elements match. Or { error }.
+// The selector is used exactly as given: Pie Launcher already built it from
+// the class names, id or CSS the user typed.
+// Self-contained: Chrome runs it in the page from its source.
+export function sectionBox(selector) {
+  let found;
+  try {
+    found = document.querySelectorAll(selector);
+  } catch {
+    return { error: 'bad-selector' };
+  }
+  if (found.length === 0) {
+    return { error: 'no-section' };
+  }
+  const rect = found[0].getBoundingClientRect();
+  const page = document.documentElement;
+  const left = Math.max(0, rect.left + scrollX);
+  const top = Math.max(0, rect.top + scrollY);
+  const right = Math.min(page.scrollWidth, rect.right + scrollX);
+  const bottom = Math.min(
+    Math.max(page.scrollHeight, document.body?.scrollHeight ?? 0),
+    rect.bottom + scrollY,
+  );
+  if (right - left < 1 || bottom - top < 1) {
+    return { error: 'empty-section' };
+  }
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+    matches: found.length,
+  };
+}
+
+// The part of a box inside a picture `width` x `height`, in whole pixels, or
+// null when none of it is.
+export function clipBox(box, width, height) {
+  const x = Math.max(0, Math.floor(box.x));
+  const y = Math.max(0, Math.floor(box.y));
+  const right = Math.min(width, Math.ceil(box.x + box.width));
+  const bottom = Math.min(height, Math.ceil(box.y + box.height));
+  if (right <= x || bottom <= y) {
+    return null;
+  }
+  return { x, y, width: right - x, height: bottom - y };
 }
 
 // Scale for a picture `height` image pixels tall, so it fits the cap.
@@ -305,7 +361,11 @@ export function createCapture({ chrome }) {
     await loaded;
   }
 
-  async function withDebugger(tabId, { device = null, reload = false } = {}) {
+  // `selector`: the section to take, or empty for the whole page.
+  async function withDebugger(
+    tabId,
+    { device = null, reload = false, selector = '' } = {},
+  ) {
     const target = { tabId };
     await attach(target);
     const send = (method, params) =>
@@ -373,13 +433,34 @@ export function createCapture({ chrome }) {
         await resize(height);
         await sleep(RESIZE_SETTLE_MS);
       }
-      const scale = fitScale(height * ratio);
+      // The page is now as tall as the view and scrolled to the top, so the
+      // section is measured where it will be drawn.
+      let area = { x: 0, y: 0, width, height };
+      let matches = null;
+      if (selector) {
+        const box = await evaluate(
+          `(${sectionBox})(${JSON.stringify(selector)})`,
+        );
+        if (!box || box.error) {
+          return { error: box?.error ?? 'failed' };
+        }
+        area = clipBox(box, width, height);
+        if (area === null) {
+          return { error: 'empty-section' };
+        }
+        matches = box.matches;
+      }
+      const scale = fitScale(area.height * ratio);
       const { data } = await send('Page.captureScreenshot', {
         format: 'jpeg',
         quality: JPEG_QUALITY,
-        clip: { x: 0, y: 0, width, height, scale },
+        clip: { ...area, scale },
       });
-      return { dataUrl: `data:image/jpeg;base64,${data}`, method: 'debugger' };
+      return {
+        dataUrl: `data:image/jpeg;base64,${data}`,
+        method: 'debugger',
+        ...(matches === null ? {} : { matches }),
+      };
     } catch (error) {
       timedOut = error instanceof TimeoutError;
       throw error;
@@ -403,7 +484,9 @@ export function createCapture({ chrome }) {
     }
   }
 
-  async function stitch(tabId, windowId) {
+  // With a `selector`, only the screens covering that element are taken,
+  // and only its columns drawn.
+  async function stitch(tabId, windowId, selector = '') {
     const startY = await scrollThrough(
       (func, args) => run(tabId, func, args),
       0,
@@ -414,11 +497,25 @@ export function createCapture({ chrome }) {
     let context = null;
     let ratio = 1;
     let shrink = 1;
+    let cropX = 0;
     let cropWidth = 0;
+    // The part of the page taken, in CSS pixels from its top.
+    let top = 0;
+    let bottom = 0;
+    let section = null;
     // How far down the picture the screens reached.
     let drawnTo = 0;
     try {
-      let target = 0;
+      if (selector) {
+        section = await run(tabId, sectionBox, [selector]);
+        if (!section || section.error) {
+          return { error: section?.error ?? 'failed' };
+        }
+        // A fixed header would cover the section's first screen.
+        await run(tabId, hideFloating);
+        top = Math.floor(section.y);
+      }
+      let target = top;
       let lastCapture = 0;
       let previousShot = null;
       let previousY = null;
@@ -453,12 +550,21 @@ export function createCapture({ chrome }) {
           if (canvas === null) {
             // Image pixels per CSS pixel (screen scaling, page zoom).
             ratio = bitmap.width / measure.viewportWidth;
-            cropWidth = Math.round(measure.contentWidth * ratio);
-            const pageHeight = Math.min(
-              measure.pageHeight,
-              MAX_FRAMES * measure.viewportHeight,
+            const area = section
+              ? clipBox(section, measure.contentWidth, measure.pageHeight)
+              : null;
+            if (section && area === null) {
+              return { error: 'empty-section' };
+            }
+            cropX = area ? Math.round(area.x * ratio) : 0;
+            cropWidth = Math.round(
+              (area ? area.width : measure.contentWidth) * ratio,
             );
-            const fullHeight = Math.round(pageHeight * ratio);
+            bottom = Math.min(
+              area ? area.y + area.height : measure.pageHeight,
+              top + MAX_FRAMES * measure.viewportHeight,
+            );
+            const fullHeight = Math.round((bottom - top) * ratio);
             shrink = fitScale(fullHeight);
             canvas = new OffscreenCanvas(
               Math.round(cropWidth * shrink),
@@ -466,27 +572,31 @@ export function createCapture({ chrome }) {
             );
             context = canvas.getContext('2d');
           }
-          const top = Math.round(measure.y * ratio * shrink);
+          // Below zero when the page can't scroll the section to the top.
+          const drawAt = Math.round((measure.y - top) * ratio * shrink);
           const height = Math.round(bitmap.height * shrink);
           context.drawImage(
             bitmap,
-            0,
+            cropX,
             0,
             cropWidth,
             bitmap.height,
             0,
-            top,
+            drawAt,
             canvas.width,
             height,
           );
-          drawnTo = Math.max(drawnTo, Math.min(canvas.height, top + height));
+          drawnTo = Math.max(drawnTo, Math.min(canvas.height, drawAt + height));
         } finally {
           bitmap.close();
         }
-        if (i === 0) {
+        if (i === 0 && !section) {
           await run(tabId, hideFloating);
         }
-        if (measure.y + measure.viewportHeight >= measure.pageHeight) {
+        if (
+          measure.y + measure.viewportHeight >=
+          Math.min(measure.pageHeight, bottom)
+        ) {
           break;
         }
         target = measure.y + measure.viewportHeight;
@@ -505,7 +615,11 @@ export function createCapture({ chrome }) {
       type: 'image/jpeg',
       quality: JPEG_QUALITY / 100,
     });
-    return { dataUrl: await blobToDataUrl(blob), method: 'stitched' };
+    return {
+      dataUrl: await blobToDataUrl(blob),
+      method: 'stitched',
+      ...(section ? { matches: section.matches } : {}),
+    };
   }
 
   // Chrome's own words, so the Screenshot tab can say why it stitched.
@@ -513,13 +627,22 @@ export function createCapture({ chrome }) {
     String(error?.message ?? error ?? '').slice(0, MAX_REASON_LENGTH) || null;
 
   // `device`: a name from devices.js, or empty for the tab as it is.
-  async function capture(tabId, { device = '', reload = false } = {}) {
-    return captureOnce(tabId, device, reload === true).catch(() => ({
+  // `selector`: a CSS selector for the section to take, or empty for the
+  // whole page.
+  async function capture(
+    tabId,
+    { device = '', reload = false, selector = '' } = {},
+  ) {
+    const section =
+      typeof selector === 'string'
+        ? selector.trim().slice(0, MAX_SELECTOR_LENGTH)
+        : '';
+    return captureOnce(tabId, device, reload === true, section).catch(() => ({
       error: 'failed',
     }));
   }
 
-  async function captureOnce(tabId, deviceName, reload) {
+  async function captureOnce(tabId, deviceName, reload, selector) {
     const device = deviceName ? deviceEmulation(deviceName) : null;
     const tab = await chrome.tabs.get(tabId).catch(() => null);
     if (!tab || (deviceName && !device)) {
@@ -534,7 +657,7 @@ export function createCapture({ chrome }) {
           if (!device) {
             await scrollThrough((func, args) => run(tabId, func, args));
           }
-          return withDebugger(tabId, { device, reload });
+          return withDebugger(tabId, { device, reload, selector });
         },
         { focusWindow: true },
       );
@@ -551,10 +674,12 @@ export function createCapture({ chrome }) {
       return { error: reason ?? 'no-device' };
     }
     try {
-      const shot = await inFront(tab, () => stitch(tabId, tab.windowId), {
-        focusWindow: true,
-      });
-      return { ...shot, reason: debuggerSaid };
+      const shot = await inFront(
+        tab,
+        () => stitch(tabId, tab.windowId, selector),
+        { focusWindow: true },
+      );
+      return shot.error ? shot : { ...shot, reason: debuggerSaid };
     } catch (error) {
       if (error instanceof NotDrawnError) {
         return { error: 'not-drawn' };

@@ -113,7 +113,7 @@ describe('the Chrome site', () => {
 
   it('gives a screenshot longer than other requests', async () => {
     bridge.request.mockResolvedValueOnce({ dataUrl: 'x' });
-    const size = { device: 'iPhone 16', reload: false };
+    const size = { device: 'iPhone 16', reload: false, section: '' };
     await expect(site().capture(size)).resolves.toEqual({ dataUrl: 'x' });
     expect(bridge.request).toHaveBeenCalledWith('capture', size, CAPTURE_MS);
   });

@@ -201,9 +201,10 @@ export function createTabs({
     return urls.length;
   }
 
-  // A picture of the whole checked page, or { error }.
+  // A picture of the whole checked page, or of one section, or { error }.
   // The capture switches tabs itself, which Page Info must not follow.
-  // args: { device, reload }, the size picked in the Screenshot tab.
+  // args: { device, reload, section }, as picked in the Screenshot tab.
+  // section: a CSS selector, or empty for the whole page.
   // Only its own tab is reloaded for a device. One of yours is taken as it
   // is, since reloading it could lose what you typed.
   async function capture(args) {
@@ -214,6 +215,7 @@ export function createTabs({
       return await capturer.capture(tabId, {
         device: typeof args?.device === 'string' ? args.device : '',
         reload: args?.reload === true && tabId === own,
+        selector: typeof args?.section === 'string' ? args.section : '',
       });
     } finally {
       capturing -= 1;

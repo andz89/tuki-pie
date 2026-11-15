@@ -427,6 +427,18 @@ describe('capture', () => {
     expect(capturer.capture).toHaveBeenCalledWith(100, {
       device: 'Pixel 9',
       reload: true,
+      selector: '',
+    });
+  });
+
+  it('passes the section on as a selector', async () => {
+    const capturer = withFakeCapturer();
+    await tabs.open({ url: 'https://a.com' });
+    await tabs.capture({ device: '', reload: false, section: '#hero' });
+    expect(capturer.capture).toHaveBeenCalledWith(100, {
+      device: '',
+      reload: false,
+      selector: '#hero',
     });
   });
 
@@ -438,6 +450,7 @@ describe('capture', () => {
     expect(capturer.capture).toHaveBeenCalledWith(7, {
       device: 'Pixel 9',
       reload: false,
+      selector: '',
     });
   });
 

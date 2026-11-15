@@ -32,8 +32,10 @@ const SHOT = {
   stitched: false,
   stitchReason: null,
   device: 'iPhone 16',
+  section: '',
+  matches: null,
 };
-const SIZE = { device: 'iPhone 16', reload: false };
+const SIZE = { device: 'iPhone 16', reload: false, section: '' };
 const controller = {
   openLinks: vi.fn(() => true),
   capture: vi.fn(async () => SHOT),
@@ -180,6 +182,8 @@ describe('the page screenshot', () => {
         stitched: false,
         stitchReason: null,
         device: 'iPhone 16',
+        section: '',
+        matches: null,
         thumbDataUrl: `data:image/jpeg;base64,${Buffer.from('thumb').toString('base64')}`,
       },
     });
@@ -205,7 +209,17 @@ describe('the page screenshot', () => {
     await expect(
       handlerFor(IpcChannels.pageInfoCapture)(
         eventFor(IpcChannels.pageInfoCapture),
-        { device: 'Huge', reload: false },
+        { device: 'Huge', reload: false, section: '' },
+      ),
+    ).rejects.toThrow();
+    expect(controller.capture).not.toHaveBeenCalled();
+  });
+
+  it('refuses a section selector longer than the limit', async () => {
+    await expect(
+      handlerFor(IpcChannels.pageInfoCapture)(
+        eventFor(IpcChannels.pageInfoCapture),
+        { ...SIZE, section: 'a'.repeat(501) },
       ),
     ).rejects.toThrow();
     expect(controller.capture).not.toHaveBeenCalled();

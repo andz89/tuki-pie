@@ -62,6 +62,15 @@ describe('pageScreenshotFileName', () => {
     );
   });
 
+  it('adds the section it was taken of, cleaned like the title', () => {
+    expect(pageScreenshotFileName('Home', time, '', '.pricing')).toBe(
+      'Home .pricing 2026-11-09 080503.jpg',
+    );
+    expect(
+      pageScreenshotFileName('Home', time, 'iPhone 16', 'main > #a:first'),
+    ).toBe('Home iPhone 16 main #a first 2026-11-09 080503.jpg');
+  });
+
   it('drops characters Windows refuses and trailing dots', () => {
     expect(pageScreenshotFileName('a/b:c*?"<>.. ', time)).toBe(
       'a b c 2026-11-09 080503.jpg',
