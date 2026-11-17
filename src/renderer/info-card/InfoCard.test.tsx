@@ -62,7 +62,8 @@ const PAGE: InfoCardPage = {
 const state = (changes: Partial<InfoCardState> = {}): InfoCardState => ({
   status: 'ready',
   page: PAGE,
-  pageId: 1,
+  // Main gives every new page a new id.
+  pageId: changes.page && changes.page !== PAGE ? 2 : 1,
   view: 'info',
   pinned: false,
   linkFilter: DEFAULT_SETTINGS.linkFilter,
@@ -120,6 +121,38 @@ afterEach(() => {
   host.remove();
 });
 
+describe('a long links list', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('builds rows in batches as the list scrolls', async () => {
+    let reveal = () => undefined as void;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(
+          callback: (entries: { isIntersecting: boolean }[]) => void,
+        ) {
+          reveal = () => callback([{ isIntersecting: true }]);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const links = Array.from({ length: 250 }, (_, at) => ({
+      href: `https://shop.de/item-${at}`,
+      hidden: false,
+    }));
+    await show(state({ view: 'links', page: { ...PAGE, links } }));
+    const rows = () => host.querySelectorAll('.link-row').length;
+    expect(rows()).toBe(200);
+    expect(text()).toContain('Showing 200 of 250');
+    await act(async () => reveal());
+    expect(rows()).toBe(250);
+    expect(text()).not.toContain('Showing');
+    // Hundreds of rows in jsdom are slow on a busy machine.
+  }, 20_000);
+});
+
 describe('Info Card', () => {
   it('shows the page info of the tab in front', async () => {
     await show(state());
@@ -143,6 +176,17 @@ describe('Info Card', () => {
     );
     expect(text()).toContain('Blog');
     expect(text()).not.toContain('Shop - Home');
+  });
+
+  it('keeps the shown page while main says it is the same page', async () => {
+    await show(state());
+    await act(async () =>
+      pushUpdate(
+        state({ pinned: true, pageId: 1, page: { ...PAGE, title: 'Blog' } }),
+      ),
+    );
+    expect(text()).toContain('Shop - Home');
+    expect(button('Unpin').getAttribute('aria-pressed')).toBe('true');
   });
 
   it('shows only the groups the user ticked', async () => {

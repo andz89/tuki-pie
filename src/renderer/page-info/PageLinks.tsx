@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { isMarked } from "../../shared/link-rules";
 import type { LinkFilter } from "../../shared/link-rules";
 import { MAX_OPEN_LINKS } from "../../shared/types";
@@ -22,6 +30,9 @@ import {
 import type { LinkChoices, NumberedLink, PageLink } from "./page-links";
 
 const COPIED_MS = 1500;
+// Rows built at a time. More are built as the list scrolls near its end, so
+// a page with thousands of links opens at once.
+export const ROWS_AT_ONCE = 200;
 
 // `unreachable` is the app's own: Chrome didn't answer.
 type LinkStatus = LinkSpot | "unreachable";
@@ -228,6 +239,34 @@ export const PageLinks = memo(function PageLinks({
     [visible, hideDuplicates],
   );
   const shown = useMemo(() => filterLinks(listed, filter), [listed, filter]);
+  // Marking words redraws every row, so it waits for typing to pause and
+  // the field stays quick on a long list.
+  const search = useDeferredValue(highlight ?? filter);
+
+  // A new page, search or filter starts from the top again.
+  const [rowLimit, setRowLimit] = useState(ROWS_AT_ONCE);
+  useEffect(() => setRowLimit(ROWS_AT_ONCE), [shown]);
+  // Without IntersectionObserver (most tests), every row is built.
+  const rows =
+    typeof IntersectionObserver === "undefined"
+      ? shown
+      : shown.slice(0, rowLimit);
+  const more = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    const end = more.current;
+    if (!end) {
+      return;
+    }
+    const watcher = new IntersectionObserver(
+      (entries) => {
+        if (entries.some(({ isIntersecting }) => isIntersecting)) {
+          setRowLimit((limit) => limit + ROWS_AT_ONCE);
+        }
+      },
+    );
+    watcher.observe(end);
+    return () => watcher.disconnect();
+  }, [rows.length, shown.length]);
 
   // The page marks one link at a time, so a new mark replaces the old one.
   const setStatus = useCallback(
@@ -473,7 +512,7 @@ export const PageLinks = memo(function PageLinks({
         <InfoEmpty>No link address contains "{filter.trim()}".</InfoEmpty>
       ) : (
         <ol className="link-list">
-          {shown.map((link) => (
+          {rows.map((link) => (
             <LinkRow
               key={link.index}
               link={link}
@@ -483,13 +522,18 @@ export const PageLinks = memo(function PageLinks({
               copied={copied === link.index}
               chromeConnected={chromeConnected}
               openTitle={openTitle}
-              search={highlight ?? filter}
+              search={search}
               onShow={showLink}
               onCopy={copyLink}
               onOpen={openOne}
               onToggle={toggle}
             />
           ))}
+          {rows.length < shown.length && (
+            <li ref={more} className="link-more">
+              Showing {rows.length} of {shown.length}. Scroll for more.
+            </li>
+          )}
         </ol>
       )}
     </div>

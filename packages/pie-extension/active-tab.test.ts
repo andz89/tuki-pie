@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createActiveTab } from './active-tab.js';
 
-type Listener = (...args: unknown[]) => void;
+type Listener = (...args: unknown[]) => unknown;
 
 let listeners: Record<string, Listener>;
 let sendEvent: ReturnType<typeof vi.fn>;
@@ -115,22 +115,46 @@ describe('showing a link in the tab in front', () => {
 });
 
 describe('highlighting words in the tab in front', () => {
-  it('loads mark.js, then marks the words', async () => {
+  it('loads mark.js the first time, then marks the words', async () => {
     chrome.scripting.executeScript
+      .mockResolvedValueOnce([{ result: -1 }] as never)
       .mockResolvedValueOnce([] as never)
       .mockResolvedValueOnce([{ result: 3 }] as never);
     const { highlightActive } = createActiveTab({ chrome, sendEvent });
     await expect(
       highlightActive({ words: ['price', ''], url: 'https://a.com/' }),
     ).resolves.toBe(3);
-    expect(chrome.scripting.executeScript).toHaveBeenNthCalledWith(1, {
+    expect(chrome.scripting.executeScript).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ args: [['price']] }),
+    );
+    expect(chrome.scripting.executeScript).toHaveBeenNthCalledWith(2, {
       target: { tabId: 5 },
       files: ['vendor/mark.min.js'],
     });
-    expect(chrome.scripting.executeScript).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ args: [['price']] }),
-    );
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not load mark.js again while the page has it', async () => {
+    chrome.scripting.executeScript.mockResolvedValueOnce([
+      { result: 2 },
+    ] as never);
+    const { highlightActive } = createActiveTab({ chrome, sendEvent });
+    await expect(
+      highlightActive({ words: ['price'], url: 'https://a.com/' }),
+    ).resolves.toBe(2);
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not load mark.js just to clear a page never marked', async () => {
+    chrome.scripting.executeScript.mockResolvedValueOnce([
+      { result: -1 },
+    ] as never);
+    const { highlightActive } = createActiveTab({ chrome, sendEvent });
+    await expect(
+      highlightActive({ words: [], url: 'https://a.com/' }),
+    ).resolves.toBe(0);
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(1);
   });
 
   it('marks nothing once the tab shows another page', async () => {
@@ -142,16 +166,87 @@ describe('highlighting words in the tab in front', () => {
   });
 });
 
-describe('active tab changes', () => {
-  beforeEach(() => createActiveTab({ chrome, sendEvent }).watch());
+describe('taking marks off a tab you left', () => {
+  it('clears the old tab once another tab is read', async () => {
+    chrome.scripting.executeScript.mockResolvedValueOnce([
+      { result: 2 },
+    ] as never);
+    const activeTab = createActiveTab({ chrome, sendEvent });
+    await activeTab.highlightActive({
+      words: ['price'],
+      url: 'https://a.com/',
+    });
+    activeTabs = [{ id: 6, url: 'https://b.com/' }];
+    chrome.scripting.executeScript.mockClear();
+    await activeTab.readActive();
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith(
+      expect.objectContaining({ target: { tabId: 5 }, args: [[]] }),
+    );
+  });
 
-  it('tells Pie Launcher when another tab or window comes forward', () => {
+  it('clears the old tab when the card closes on another tab', async () => {
+    chrome.scripting.executeScript.mockResolvedValueOnce([
+      { result: 2 },
+    ] as never);
+    const activeTab = createActiveTab({ chrome, sendEvent });
+    await activeTab.highlightActive({
+      words: ['price'],
+      url: 'https://a.com/',
+    });
+    activeTabs = [{ id: 6, url: 'https://b.com/' }];
+    chrome.scripting.executeScript.mockClear();
+    await expect(
+      activeTab.highlightActive({ words: [], url: 'https://a.com/' }),
+    ).resolves.toBe(0);
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(1);
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith(
+      expect.objectContaining({ target: { tabId: 5 }, args: [[]] }),
+    );
+  });
+
+  it('leaves the tab alone while it is still the one marked', async () => {
+    chrome.scripting.executeScript.mockResolvedValueOnce([
+      { result: 2 },
+    ] as never);
+    const activeTab = createActiveTab({ chrome, sendEvent });
+    await activeTab.highlightActive({
+      words: ['price'],
+      url: 'https://a.com/',
+    });
+    chrome.scripting.executeScript.mockClear();
+    await activeTab.readActive();
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(1);
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith(
+      expect.objectContaining({ files: ['collect-page.js'] }),
+    );
+  });
+});
+
+describe('active tab changes', () => {
+  let activeTab: ReturnType<typeof createActiveTab>;
+  beforeEach(() => {
+    activeTab = createActiveTab({ chrome, sendEvent });
+    activeTab.watch();
+  });
+
+  it('tells Pie Launcher when another tab comes forward', () => {
     listeners.activated({ tabId: 3 });
-    listeners.focus(2);
-    expect(sendEvent.mock.calls).toEqual([
-      ['activeTabChanged', 'active-tab'],
-      ['activeTabChanged', 'active-tab'],
-    ]);
+    expect(sendEvent.mock.calls).toEqual([['activeTabChanged', 'active-tab']]);
+  });
+
+  it('tells Pie Launcher when another window brings another tab forward', async () => {
+    await listeners.focus(2);
+    expect(chrome.tabs.query).toHaveBeenCalledWith({
+      active: true,
+      windowId: 2,
+    });
+    expect(sendEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores focus coming back to the tab already on the card', async () => {
+    await activeTab.readActive();
+    await listeners.focus(1);
+    expect(sendEvent).not.toHaveBeenCalled();
   });
 
   it('ignores focus leaving Chrome', () => {

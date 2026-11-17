@@ -61,7 +61,7 @@ Top (Bottom is the same bar at the bottom):
 
 - **Extension**
   - New action `readActive`: runs `collect-page.js` in the active tab of the last focused Chrome window and returns `{ url, page }`, or `null` for a non-web tab.
-  - New event `activeTabChanged`, sent when the active tab changes, the focused Chrome window changes, or the active tab finishes loading or changes address.
+  - New event `activeTabChanged`, sent when the active tab changes, another Chrome window comes forward with a tab other than the one last read (clicking back into Chrome from the card reads nothing), or the active tab finishes loading or changes address.
   - Version bump; the extension must be reloaded.
 - **Main**
   - `info-card-window.ts`: a frameless, always-on-top window placed by layout on the display under the mouse. Closes on blur while unpinned.

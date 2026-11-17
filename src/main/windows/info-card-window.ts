@@ -36,6 +36,8 @@ interface OpenCard {
   images: PageImages;
   pinned: boolean;
   view: InfoCardView;
+  // The page the highlight field last marked, cleared when the card closes.
+  marked: string | null;
   stop: () => void;
 }
 
@@ -153,6 +155,9 @@ export async function highlightInfoCardPage(
     return null;
   }
   const words = highlightWords(text);
+  if (card) {
+    card.marked = words.length > 0 ? page.url : null;
+  }
   const count = await bridge
     .request('highlightActive', { words, url: page.url })
     .catch(() => null);
@@ -321,6 +326,7 @@ export function openInfoCard(): void {
     images,
     pinned: false,
     view: 'info',
+    marked: null,
     stop: () => {
       stopEvents();
       stopStatus();
@@ -353,6 +359,12 @@ export function openInfoCard(): void {
     }
   });
   window.on('closed', () => {
+    // The window is gone before its own clean-up can ask for this.
+    if (opened.marked && bridge?.status() === 'connected') {
+      bridge
+        .request('highlightActive', { words: [], url: opened.marked })
+        .catch(() => undefined);
+    }
     opened.stop();
     if (card === opened) {
       card = null;

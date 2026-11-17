@@ -15,6 +15,32 @@ const MAX_HIGHLIGHT_LENGTH = 100;
 // The tab you are looking at, for Pie Launcher's Info Card. The page is read
 // only when Pie Launcher asks, and it asks only while the card is open.
 export function createActiveTab({ chrome, sendEvent }) {
+  // The tab last read for the card. Clicking back into Chrome from the card
+  // brings the same tab forward; reading it again would wipe the Links
+  // card's ticks and scroll the page to the highlight. Forgotten when the
+  // worker sleeps, which only costs one extra read.
+  let lastRead = null;
+  // The tab the highlight field last marked. Once another tab is on the
+  // card, its marks are taken off, so a tab you left is not left yellow.
+  // Only Pie Launcher's own marks are removed; nothing is read.
+  let markedTab = null;
+
+  async function clearMarks(keepTabId) {
+    if (markedTab === null || markedTab === keepTabId) {
+      return;
+    }
+    const tabId = markedTab;
+    markedTab = null;
+    // The tab may be closed, or show a page scripts can't run in.
+    await chrome.scripting
+      .executeScript({
+        target: { tabId },
+        func: highlightWordsOnPage,
+        args: [[]],
+      })
+      .catch(() => undefined);
+  }
+
   async function find() {
     const focused = await chrome.windows
       .getLastFocused({ windowTypes: ['normal'] })
@@ -33,6 +59,8 @@ export function createActiveTab({ chrome, sendEvent }) {
   // the like.
   async function readActive() {
     const tab = await find();
+    lastRead = tab?.id ?? null;
+    void clearMarks(lastRead);
     if (!tab) {
       return null;
     }
@@ -80,23 +108,37 @@ export function createActiveTab({ chrome, sendEvent }) {
           .slice(0, MAX_HIGHLIGHT_WORDS)
           .map((word) => word.slice(0, MAX_HIGHLIGHT_LENGTH))
       : [];
-    const tab = await find();
-    if (
-      !tab ||
-      typeof args?.url !== 'string' ||
-      !sameAddress(tab.url, args.url)
-    ) {
+    const found = await find();
+    const tab =
+      found && typeof args?.url === 'string' && sameAddress(found.url, args.url)
+        ? found
+        : null;
+    await clearMarks(tab?.id ?? null);
+    if (!tab) {
       return 0;
     }
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ['vendor/mark.min.js'],
-    });
-    const [first] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: highlightWordsOnPage,
-      args: [words],
-    });
+    // mark.js stays in the page once loaded, so it is sent only the first
+    // time, or after the page reloaded.
+    const mark = () =>
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: highlightWordsOnPage,
+        args: [words],
+      });
+    let [first] = await mark();
+    if (first?.result === -1) {
+      if (words.length === 0) {
+        // Never marked, so nothing to clear.
+        return 0;
+      }
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['vendor/mark.min.js'],
+      });
+      [first] = await mark();
+    }
+    markedTab = words.length > 0 ? tab.id : null;
+    // -1: mark.js did not load.
     return Number.isInteger(first?.result) ? first.result : 0;
   }
 
@@ -105,8 +147,15 @@ export function createActiveTab({ chrome, sendEvent }) {
   // Another tab or window in front, or the tab in front loaded or moved.
   function watch() {
     chrome.tabs.onActivated.addListener(changed);
-    chrome.windows.onFocusChanged.addListener((windowId) => {
-      if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+    chrome.windows.onFocusChanged.addListener(async (windowId) => {
+      if (windowId === chrome.windows.WINDOW_ID_NONE) {
+        return;
+      }
+      const [tab] = await chrome.tabs
+        .query({ active: true, windowId })
+        .catch(() => []);
+      // Only when focus brings another tab forward than the one on the card.
+      if (!tab || tab.id !== lastRead) {
         changed();
       }
     });

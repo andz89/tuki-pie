@@ -49,7 +49,15 @@ export function InfoCard() {
   const closeMenu = useCallback(() => setMenu(null), []);
 
   useEffect(() => {
-    const stop = infoCardBridge.onUpdate(setState);
+    // The same page keeps the same object, so pinning, the theme or a
+    // filter does not redraw every link and image row.
+    const stop = infoCardBridge.onUpdate((next) =>
+      setState((shown) =>
+        shown?.page && next.page && shown.pageId === next.pageId
+          ? { ...next, page: shown.page }
+          : next,
+      ),
+    );
     void infoCardBridge.getState().then((result) => {
       if (result.ok) {
         setState((shown) => shown ?? result.value);
