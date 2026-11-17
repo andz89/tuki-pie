@@ -9,7 +9,8 @@ export type WindowRole =
   | 'page-info'
   | 'saved-sites'
   | 'reminder'
-  | 'screenshot';
+  | 'screenshot'
+  | 'info-card';
 
 const roles = new WeakMap<WebContents, WindowRole>();
 
@@ -49,6 +50,7 @@ export const CHANNEL_ROLES: Readonly<Record<string, readonly WindowRole[]>> = {
   [C.windowOpenPageInfo]: ['pie'],
   [C.windowSetListSide]: ['pie'],
   [C.windowOpenNotes]: ['pie'],
+  [C.windowOpenInfoCard]: ['pie'],
   [C.pieSettingsUpdate]: ['pie'],
   [C.shortcutsOpen]: ['pie'],
   [C.shortcutsIcon]: ['pie'],
@@ -104,6 +106,7 @@ export const CHANNEL_ROLES: Readonly<Record<string, readonly WindowRole[]>> = {
   [C.pageInfoSaveCapture]: ['page-info'],
   [C.pageInfoCopyCapture]: ['page-info'],
   [C.pageInfoImage]: ['page-info'],
+  [C.pageInfoHistory]: ['page-info'],
 
   [C.savedSitesList]: SAVED_SITES_VIEWS,
   [C.savedSitesGet]: SAVED_SITES_VIEWS,
@@ -125,6 +128,21 @@ export const CHANNEL_ROLES: Readonly<Record<string, readonly WindowRole[]>> = {
   [C.screenshotImage]: ['screenshot'],
   [C.screenshotPick]: ['screenshot'],
   [C.screenshotCancel]: ['screenshot'],
+
+  [C.infoCardGetState]: ['info-card'],
+  [C.infoCardSetPinned]: ['info-card'],
+  [C.infoCardSetLayout]: ['info-card'],
+  [C.infoCardSetFields]: ['info-card'],
+  [C.infoCardImage]: ['info-card'],
+  [C.infoCardClose]: ['info-card'],
+  [C.infoCardOpenInWebPage]: ['info-card'],
+  [C.infoCardSetView]: ['info-card'],
+  [C.infoCardShowLink]: ['info-card'],
+  [C.infoCardOpenLinks]: ['info-card'],
+  [C.infoCardOpenHere]: ['info-card'],
+  [C.infoCardSetLinkFilter]: ['info-card'],
+  [C.infoCardSetLinksOpenIn]: ['info-card'],
+  [C.infoCardHighlight]: ['info-card'],
 };
 
 export function hasChannelRule(channel: string): boolean {

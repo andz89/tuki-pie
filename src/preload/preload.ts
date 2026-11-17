@@ -39,6 +39,7 @@ const bridge: PieBridge = {
     openSettings: () => ipcRenderer.invoke(IpcChannels.windowOpenSettings),
     openPageInfo: () => ipcRenderer.invoke(IpcChannels.windowOpenPageInfo),
     openNotes: () => ipcRenderer.invoke(IpcChannels.windowOpenNotes),
+    openInfoCard: () => ipcRenderer.invoke(IpcChannels.windowOpenInfoCard),
     volume: (change) => ipcRenderer.invoke(IpcChannels.windowVolume, change),
     setListSide: (side) =>
       ipcRenderer.invoke(IpcChannels.windowSetListSide, side),

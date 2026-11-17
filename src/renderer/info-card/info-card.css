@@ -1,0 +1,1147 @@
+/* The window is see-through around the card and 95% opaque overall
+   (info-card-window.ts), so the card floats with rounded corners. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.info-card {
+  --page: #14161b;
+  --page-2: #1b1f27;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-hover: rgba(255, 255, 255, 0.07);
+  --control: rgba(255, 255, 255, 0.08);
+  --text: #f3f5f8;
+  --sub: #98a2b3;
+  --line: rgba(255, 255, 255, 0.08);
+  --accent: #8b9cff;
+  --accent-2: #5cd5ff;
+  --accent-soft: rgba(139, 156, 255, 0.16);
+  --good: #4ade80;
+  --good-soft: rgba(74, 222, 128, 0.14);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.14);
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 12px);
+  margin: 6px;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--page-2), var(--page) 60%);
+  color: var(--text);
+  font:
+    13px/1.45 Inter,
+    'Segoe UI Variable Text',
+    system-ui,
+    sans-serif;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  animation: info-card-in 160ms ease-out;
+}
+
+.info-card[data-theme='light'] {
+  --page: #f4f6fa;
+  --page-2: #ffffff;
+  --surface: rgba(15, 23, 42, 0.035);
+  --surface-hover: rgba(15, 23, 42, 0.06);
+  --control: rgba(15, 23, 42, 0.07);
+  --text: #141821;
+  --sub: #5d6676;
+  --line: rgba(15, 23, 42, 0.1);
+  --accent: #4f5ff0;
+  --accent-2: #0ea5e9;
+  --accent-soft: rgba(79, 95, 240, 0.1);
+  --good: #15803d;
+  --good-soft: rgba(21, 128, 61, 0.1);
+  --warn: #b45309;
+  --warn-soft: rgba(180, 83, 9, 0.1);
+  --shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+}
+
+@keyframes info-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .info-card,
+  .info-card * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.info-card *,
+.info-card *::before,
+.info-card *::after {
+  box-sizing: border-box;
+}
+
+/* Thin scrollbars that stay out of the way. */
+.info-card ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.info-card ::-webkit-scrollbar-thumb {
+  background: var(--control);
+  border-radius: 3px;
+}
+
+.info-card ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Toolbar */
+.info-card-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid var(--line);
+  user-select: none;
+}
+
+.info-card-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.info-card-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 10px var(--accent-soft);
+}
+
+.info-card-reading {
+  margin-right: 6px;
+  color: var(--accent);
+  font-size: 12px;
+  animation: info-card-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes info-card-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.info-card-tool {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sub);
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+
+.info-card-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.info-card-tool:hover:not(:disabled) {
+  background: var(--control);
+  color: var(--text);
+}
+
+.info-card-tool[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.info-card-tool svg {
+  width: 17px;
+  height: 17px;
+}
+
+.info-card-tool:focus-visible,
+.info-card-done:focus-visible,
+.info-card-choice input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Content */
+.info-card-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.info-card-section {
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  transition: background 120ms;
+}
+
+.info-card-section:hover {
+  background: var(--surface-hover);
+}
+
+.info-card h2,
+.info-card h3 {
+  margin: 0 0 6px;
+}
+
+.info-card-title {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.info-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--sub);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.info-card p {
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+
+.info-card-url {
+  color: var(--accent);
+  font:
+    12px/1.4 ui-monospace,
+    'Cascadia Code',
+    Consolas,
+    monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The canonical is shown in full, wrapping where it must. */
+.info-card-url.is-whole {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+.info-card-text {
+  color: var(--text);
+}
+
+.info-card-sub {
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.info-card-quote {
+  padding-left: 8px;
+  border-left: 2px solid var(--accent);
+}
+
+.info-card-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  letter-spacing: 0;
+}
+
+.info-card-message {
+  color: var(--sub);
+  padding: 12px 4px;
+  text-align: center;
+}
+
+/* Pills: language, trackers, found or not */
+.info-card-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.info-card-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--control);
+  color: var(--sub);
+  font-size: 11.5px;
+  font-weight: 550;
+}
+
+.info-card h3 .info-card-pill {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.info-card-pill.is-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.info-card-pill.is-good {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.info-card-pairs {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.info-card-pairs div {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.info-card-pairs dt {
+  color: var(--sub);
+}
+
+.info-card-pairs dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Counts as small tiles */
+.info-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.info-card-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--control);
+  color: var(--sub);
+  font-size: 11px;
+}
+
+.info-card-stat strong {
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The links tile opens the Links card. */
+.info-card-stat.is-button {
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 120ms,
+    background 120ms;
+}
+
+.info-card-stat.is-button::after {
+  content: 'Show →';
+  margin-top: 2px;
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.info-card-stat.is-button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.info-card-stat.is-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.info-card-stat.is-warn {
+  background: var(--warn-soft);
+}
+
+.info-card-stat.is-warn strong {
+  color: var(--warn);
+}
+
+/* Featured images */
+.info-card-images {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.info-card-image {
+  margin: 0;
+  width: 100px;
+}
+
+.info-card-thumb {
+  display: grid;
+  place-items: center;
+  width: 100px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--control);
+  color: var(--sub);
+  font-size: 11px;
+}
+
+.info-card-thumb.is-waiting {
+  display: block;
+}
+
+.info-card-image figcaption {
+  margin-top: 2px;
+  color: var(--sub);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The Links card: Web Page's Links list, styled for the card. Web Page's
+   stylesheet is not loaded here (its .info-card would clash). */
+.info-card-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.info-card-links p {
+  margin: 0;
+}
+
+.info-card-links input[type='search'],
+.info-card-links input[type='text'] {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+.info-card-links input[type='search']:focus,
+.info-card-links input[type='text']:focus {
+  border-color: var(--accent);
+}
+
+.info-card-links input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+
+/* Open links in: Chrome | Web Page */
+.info-card-links .links-open-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.info-card-links .links-open-in-choices {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--control);
+}
+
+.info-card-links .links-open-in-choice {
+  padding: 3px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sub);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+
+.info-card-links .links-open-in-choice:hover {
+  color: var(--text);
+}
+
+.info-card-links .links-open-in-choice.is-on {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+}
+
+.info-card-links .links-open-in-choice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.info-card-links .link-filters-bar,
+.info-card-links .link-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.info-card-links .link-summary strong {
+  color: var(--text);
+}
+
+.info-card-links .link-filters-panel {
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.info-card-links .filter-group {
+  margin: 0 0 10px;
+  padding: 0;
+  border: 0;
+}
+
+.info-card-links .filter-group legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-weight: 650;
+}
+
+.info-card-links .filter-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.info-card-links .filter-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.info-card-links .filter-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.info-card-links .filter-add input {
+  flex: 1;
+  min-width: 0;
+}
+
+.info-card-links .filter-words {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.info-card-links .filter-words li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.info-card-links .link-button {
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--control);
+  color: var(--text);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+
+.info-card-links .link-button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.info-card-links .link-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.info-card-links .link-button.button-on {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+}
+
+.info-card-links .link-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.info-card-links .link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.info-card-links .link-confirm {
+  padding: 8px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 10px;
+  background: var(--warn-soft);
+}
+
+.info-card-links .link-confirm .link-actions {
+  margin-top: 6px;
+}
+
+.info-card-links .info-note,
+.info-card-links .info-empty {
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.info-card-links .link-left-out-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-card-links .link-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.info-card-links .link-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  transition: background 120ms;
+}
+
+.info-card-links .link-row:hover {
+  background: var(--surface-hover);
+}
+
+.info-card-links .link-row + .link-row {
+  border-top: 1px solid var(--line);
+}
+
+.info-card-links .link-include {
+  flex: none;
+  margin: 2px 0 0;
+}
+
+.info-card-links .link-row.is-left-out .link-number,
+.info-card-links .link-row.is-left-out .link-body {
+  opacity: 0.5;
+}
+
+.info-card-links .link-number {
+  flex: none;
+  min-width: 22px;
+  color: var(--sub);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.info-card-links .link-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.info-card-links .link-href {
+  color: var(--accent);
+  font:
+    12px/1.4 ui-monospace,
+    'Cascadia Code',
+    Consolas,
+    monospace;
+  word-break: break-all;
+}
+
+/* The card's settings: where links open, duplicates, Link filters. */
+.info-card-links .links-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+/* Highlight and search: the same field, each with its icon. */
+.info-card-links .links-field,
+.info-card-links .link-filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.info-card-links .links-field-icon,
+.info-card-links .link-filter-icon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  display: flex;
+  color: var(--sub);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.info-card-links .links-field-icon.is-highlight {
+  color: var(--warn);
+}
+
+.info-card-links .links-field input,
+.info-card-links .link-filter input {
+  padding-left: 30px;
+}
+
+.info-card-links .links-field input {
+  padding-right: 92px;
+}
+
+.info-card-links .links-field input:focus {
+  border-color: var(--warn);
+}
+
+/* The page's answer, inside the highlight field. */
+.info-card-links .links-field-badge {
+  position: absolute;
+  right: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--control);
+  color: var(--sub);
+  font-size: 11px;
+  font-weight: 550;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.info-card-links .links-field-badge.is-found {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.info-card-links .links-highlight-note {
+  margin-top: 4px;
+  color: var(--warn);
+  font-size: 11.5px;
+}
+
+/* The fields sit close together, as one search area. */
+.info-card-links .links-highlight + .page-links {
+  margin-top: -2px;
+}
+
+.info-card-links .page-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Notes under the counts: quiet, each marked on the left. */
+.info-card-links .page-links > .info-note {
+  padding-left: 8px;
+  border-left: 2px solid var(--line);
+  line-height: 1.4;
+}
+
+.info-card-links .link-summary p {
+  min-width: 0;
+}
+
+/* Highlighted words in each address. */
+.info-card-links .link-hit {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-weight: 650;
+  box-shadow: inset 0 -1px 0 var(--warn);
+}
+
+.info-card-links .link-body .link-actions {
+  margin-top: 6px;
+}
+
+.info-card-links .link-status,
+.info-card-links .link-hint {
+  margin-top: 4px;
+  font-size: 11.5px;
+}
+
+.info-card-links .link-hint {
+  color: var(--sub);
+}
+
+.info-card-links .link-status.is-good {
+  color: var(--good);
+}
+
+.info-card-links .link-status.is-warning {
+  color: var(--warn);
+}
+
+/* The Images card: Web Page's Images list. */
+.info-card-links .image-row {
+  align-items: flex-start;
+}
+
+.info-card-links .image-thumb {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--control);
+  color: var(--sub);
+}
+
+.info-card-links .image-thumb-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.info-card-links .image-thumb-open img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform 160ms ease;
+}
+
+.info-card-links .image-thumb-open:hover img {
+  transform: scale(1.06);
+}
+
+.info-card-links .image-thumb .is-waiting {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--control),
+    var(--surface-hover),
+    var(--control)
+  );
+  background-size: 200% 100%;
+  animation: info-card-shimmer 1.2s linear infinite;
+}
+
+@keyframes info-card-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* The full-size view, over the whole card. */
+.info-card-links .image-viewer {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-out;
+}
+
+.info-card-links .image-viewer[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-card-links .image-viewer::backdrop {
+  background: rgb(0 0 0 / 0.8);
+}
+
+.info-card-links .image-viewer img {
+  display: block;
+  max-width: calc(100vw - 96px);
+  max-height: calc(100vh - 64px);
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.info-card-links .image-viewer-broken,
+.info-card-links .image-viewer-count {
+  margin: 0;
+  color: #fff;
+  font-size: 12px;
+}
+
+.info-card-links .image-viewer-count {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.55);
+  transform: translateX(-50%);
+}
+
+.info-card-links .image-viewer-arrow {
+  position: fixed;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.info-card-links .image-viewer-arrow:hover:not(:disabled) {
+  background: rgb(0 0 0 / 0.8);
+}
+
+.info-card-links .image-viewer-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.info-card-links .image-viewer-arrow.is-previous {
+  left: 8px;
+}
+
+.info-card-links .image-viewer-arrow.is-previous svg {
+  transform: scaleX(-1);
+}
+
+.info-card-links .image-viewer-arrow.is-next {
+  right: 8px;
+}
+
+/* Layout and field menus: a small card beside the button that opened it.
+   The see-through backdrop only catches a click outside the card. */
+.info-card-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.info-card-modal {
+  position: absolute;
+  max-width: calc(100% - 8px);
+  max-height: calc(100% - 8px);
+  overflow: auto;
+  padding: 10px 12px 12px;
+  background: var(--page-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  animation: info-card-pop 120ms ease-out;
+}
+
+@keyframes info-card-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.info-card-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+  font-weight: 650;
+}
+
+.info-card-done {
+  padding: 3px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.info-card-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.info-card-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.info-card-choice:hover {
+  background: var(--control);
+}
+
+.info-card-choice input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* Top and bottom: the groups side by side, scrolling sideways. */
+.info-card[data-layout='top'],
+.info-card[data-layout='bottom'] {
+  flex-direction: row;
+}
+
+.info-card[data-layout='top'] .info-card-tools,
+.info-card[data-layout='bottom'] .info-card-tools {
+  order: 2;
+  /* Five buttons in two columns: a column of five is taller than the bar. */
+  display: grid;
+  grid-template-columns: repeat(2, 30px);
+  align-content: center;
+  padding: 6px;
+  border-bottom: 0;
+  border-left: 1px solid var(--line);
+}
+
+.info-card[data-layout='top'] .info-card-name,
+.info-card[data-layout='bottom'] .info-card-name,
+.info-card[data-layout='top'] .info-card-reading,
+.info-card[data-layout='bottom'] .info-card-reading {
+  display: none;
+}
+
+.info-card[data-layout='top'] .info-card-body,
+.info-card[data-layout='bottom'] .info-card-body {
+  flex-direction: row;
+  align-items: stretch;
+  padding: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.info-card[data-layout='top'] .info-card-section,
+.info-card[data-layout='bottom'] .info-card-section {
+  flex: 0 0 auto;
+  width: 250px;
+  padding: 8px 10px;
+  overflow: auto;
+}
+
+.info-card[data-layout='top'] .info-card-section[data-field='title'],
+.info-card[data-layout='bottom'] .info-card-section[data-field='title'] {
+  width: 360px;
+}
+
+.info-card[data-layout='top'] .info-card-section[data-field='images'],
+.info-card[data-layout='bottom'] .info-card-section[data-field='images'] {
+  width: auto;
+}
+
+.info-card[data-layout='top'] .info-card-images,
+.info-card[data-layout='bottom'] .info-card-images {
+  flex-wrap: nowrap;
+}
+
+/* The bars are short, so the menu lays its choices out in columns. */
+.info-card[data-layout='top'] .info-card-menu,
+.info-card[data-layout='bottom'] .info-card-menu {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(3, auto);
+  gap: 0 10px;
+}
+
+.info-card[data-layout='top'] .info-card-modal,
+.info-card[data-layout='bottom'] .info-card-modal {
+  padding: 4px 10px 6px;
+}
+
+.info-card[data-layout='top'] .info-card-modal-head,
+.info-card[data-layout='bottom'] .info-card-modal-head {
+  margin-bottom: 0;
+}
+
+.info-card[data-layout='top'] .info-card-choice,
+.info-card[data-layout='bottom'] .info-card-choice {
+  padding: 1px 6px;
+}

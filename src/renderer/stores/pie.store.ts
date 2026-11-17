@@ -67,6 +67,7 @@ export interface PieState {
   openSettings: () => void;
   openPageInfo: () => void;
   openNotes: () => void;
+  openInfoCard: () => void;
   takeScreenshot: (mode: ScreenshotMode) => Promise<void>;
   openShortcutForm: (request: PanelFormRequest) => void;
   close: () => void;

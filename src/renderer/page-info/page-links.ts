@@ -44,6 +44,45 @@ export function matchesAddress(address: string, filter: string): boolean {
   return words.every((word) => lower.includes(word));
 }
 
+export interface TextPart {
+  text: string;
+  // Part of a search word, so it is highlighted.
+  hit: boolean;
+}
+
+// The address cut into pieces, with every place a search word appears
+// marked, by the same case-insensitive rule as matchesAddress. Overlapping
+// or touching words make one highlight.
+export function highlightParts(address: string, filter: string): TextPart[] {
+  const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  const lower = address.toLowerCase();
+  // A few letters change length when lowercased; then nothing is marked
+  // rather than the wrong letters.
+  if (words.length === 0 || lower.length !== address.length) {
+    return [{ text: address, hit: false }];
+  }
+  const hits = Array<boolean>(address.length).fill(false);
+  for (const word of words) {
+    for (
+      let at = lower.indexOf(word);
+      at !== -1;
+      at = lower.indexOf(word, at + 1)
+    ) {
+      hits.fill(true, at, at + word.length);
+    }
+  }
+  const parts: TextPart[] = [];
+  for (let index = 0; index < address.length; index += 1) {
+    const last = parts[parts.length - 1];
+    if (last && last.hit === hits[index]) {
+      last.text += address[index];
+    } else {
+      parts.push({ text: address[index], hit: hits[index] });
+    }
+  }
+  return parts;
+}
+
 export function filterLinks(
   links: NumberedLink[],
   filter: string,

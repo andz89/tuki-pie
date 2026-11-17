@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { PageImageSize } from '../../shared/types';
 import { blobUrlFromDataUrl } from './blob-url';
+import { ChromeImageSourceContext } from './chrome-image-source';
 import { pageInfoBridge } from './page-info-bridge';
 import { usePageInfoStore } from './page-info.store';
 
@@ -39,9 +40,14 @@ export function ChromeImage({
   offline,
   onBroken,
 }: ChromeImageProps) {
-  const chromeConnected = usePageInfoStore(
+  const source = useContext(ChromeImageSourceContext);
+  const pageInfoConnected = usePageInfoStore(
     (state) => state.update.chromeConnected,
   );
+  const chromeConnected = source ? source.connected : pageInfoConnected;
+  // Read when asking, so a new source object never asks again by itself.
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
   const [state, setState] = useState<State>({ kind: 'waiting' });
   const [isInView, setIsInView] = useState(!lazy);
   const boxRef = useRef<HTMLSpanElement>(null);
@@ -77,7 +83,8 @@ export function ChromeImage({
     let isCurrent = true;
     let blobUrl: string | null = null;
     setState({ kind: 'waiting' });
-    void pageInfoBridge.image(url, size).then((result) => {
+    const fetchImage = sourceRef.current?.fetch ?? pageInfoBridge.image;
+    void fetchImage(url, size).then((result) => {
       if (!isCurrent) {
         return;
       }

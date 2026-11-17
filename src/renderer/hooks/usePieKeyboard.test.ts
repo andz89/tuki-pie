@@ -17,6 +17,7 @@ vi.mock('../api/bridge', () => ({
       openShortcutForm: vi.fn().mockResolvedValue(undefined),
       openPageInfo: vi.fn().mockResolvedValue(undefined),
       openNotes: vi.fn().mockResolvedValue(undefined),
+      openInfoCard: vi.fn().mockResolvedValue(undefined),
       setListSide: vi.fn().mockResolvedValue(undefined),
     },
   },

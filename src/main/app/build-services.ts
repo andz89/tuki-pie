@@ -36,6 +36,7 @@ import {
   readExplorerSelection,
 } from '../zip/explorer-selection';
 import { ZipSelection, defaultZipDeps } from '../zip/zip-selection';
+import { infoCardSettingsChanged } from '../windows/info-card-window';
 import { sendNotesChanged } from '../windows/notes-window';
 import {
   sendSavedSitesChangedToPageInfo,
@@ -100,6 +101,7 @@ export function buildServices(startup: Startup) {
     applied: (saved) => {
       setPieSize(saved.size);
       setPiePin(saved.pin);
+      infoCardSettingsChanged();
       // Defined below; only called once the app is running.
       suggestionSync.push();
     },

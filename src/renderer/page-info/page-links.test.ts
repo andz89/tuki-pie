@@ -4,6 +4,7 @@ import {
   countAddresses,
   countMarked,
   filterLinks,
+  highlightParts,
   includedLinks,
   isWebLink,
   openableUrls,
@@ -12,6 +13,41 @@ import {
 } from './page-links';
 
 const link = (href: string, hidden = false) => ({ href, hidden });
+
+describe('highlighting search words in an address', () => {
+  const marked = (address: string, filter: string) =>
+    highlightParts(address, filter)
+      .filter(({ hit }) => hit)
+      .map(({ text }) => text);
+
+  it('marks each place a word appears, ignoring case', () => {
+    expect(marked('https://Shop.de/shop/shoes', 'shop')).toEqual([
+      'Shop',
+      'shop',
+    ]);
+  });
+
+  it('marks every word, and joins words that overlap', () => {
+    expect(marked('https://a.com/blue-shoes', 'blue shoe')).toEqual([
+      'blue',
+      'shoe',
+    ]);
+    expect(marked('https://a.com/blueshoes', 'blue shoe')).toEqual([
+      'blueshoe',
+    ]);
+  });
+
+  it('keeps the whole address, in order', () => {
+    const parts = highlightParts('https://a.com/shoes', 'shoe');
+    expect(parts.map(({ text }) => text).join('')).toBe('https://a.com/shoes');
+  });
+
+  it('marks nothing without search words', () => {
+    expect(highlightParts('https://a.com/', '  ')).toEqual([
+      { text: 'https://a.com/', hit: false },
+    ]);
+  });
+});
 const ALL_ON = DEFAULT_LINK_FILTER;
 
 const LINKS = [

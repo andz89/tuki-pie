@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { IpcChannels } from '../../shared/ipc-channels';
 import { PanelFormRequest } from '../../shared/schemas/shortcut.schema';
 import { assertSender } from './ipc-access';
+import { openInfoCard } from '../windows/info-card-window';
 import { openNotesWindow } from '../windows/notes-window';
 import { openPageInfo } from '../windows/page-info-window';
 import { openPanelWindow, requestPanelForm } from '../windows/panel-window';
@@ -72,6 +73,16 @@ export function registerWindowIpc(): void {
     dismissPieWindow();
     openNotesWindow();
   });
+
+  ipcMain.handle(
+    IpcChannels.windowOpenInfoCard,
+    (event, ...input: unknown[]) => {
+      assertSender(IpcChannels.windowOpenInfoCard, event);
+      NoInput.parse(input);
+      dismissPieWindow();
+      openInfoCard();
+    },
+  );
 
   ipcMain.handle(
     IpcChannels.windowOpenSettings,

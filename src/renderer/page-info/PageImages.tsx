@@ -6,7 +6,7 @@ import { MAX_OPEN_LINKS } from '../../shared/types';
 import { PieIcon } from '../components/icons/SliceIcon';
 import { ChromeImage } from './ChromeImage';
 import { InfoEmpty } from './InfoCard';
-import { pageInfoBridge } from './page-info-bridge';
+import { useLinkActions } from './link-actions';
 import { shareImageSource } from './page-info-view';
 import { filterImages, imagesWord } from './page-images';
 import { ASK_ABOVE } from './page-links';
@@ -274,9 +274,11 @@ export const PageImages = memo(function PageImages({
     viewerRef.current?.showModal();
   }, []);
 
+  // Web Page's own, or the Images card's (see link-actions.ts).
+  const actions = useLinkActions();
   const openOne = useCallback(
-    (url: string) => void pageInfoBridge.openLinks([url]),
-    [],
+    (url: string) => void actions.openInChrome([url], []),
+    [actions],
   );
 
   if (images.length === 0) {
@@ -295,7 +297,7 @@ export const PageImages = memo(function PageImages({
   };
 
   const openAll = async () => {
-    const result = await pageInfoBridge.openLinks(toOpen);
+    const result = await actions.openInChrome(toOpen, []);
     setConfirming(false);
     setOpened(result.ok && result.value ? toOpen.length : 0);
   };

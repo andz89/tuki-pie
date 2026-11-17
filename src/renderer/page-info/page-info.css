@@ -610,6 +610,15 @@
   word-break: break-all;
 }
 
+/* Search words, highlighted in each address. */
+.link-hit {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: rgba(245, 158, 11, 0.25);
+  color: inherit;
+  font-weight: 600;
+}
+
 .image-thumb {
   display: flex;
   flex: none;
@@ -1054,4 +1063,205 @@
 
 .page-info-saved {
   height: 100vh;
+}
+
+/* Chrome history */
+
+.history-dialog {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.history-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-dialog::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.history-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Every control in the row: one height, one text size. */
+.panel .history-filters input:not([type='checkbox']),
+.panel .history-filters button {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.panel .history-filters input:not([type='checkbox']) {
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: var(--page);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.history-days {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sub);
+  font-size: 13px;
+}
+
+.panel .history-days input {
+  width: 64px;
+  padding: 0 6px;
+  text-align: center;
+}
+
+.panel .history-days input[aria-invalid='true'] {
+  border-color: var(--bad);
+}
+
+/* Its own line under the row, as in Excel's Find. */
+.history-exact {
+  display: inline-flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 6px;
+  color: var(--sub);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.history-exact input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.panel .history-text {
+  flex: 1 1 220px;
+  width: auto;
+  min-width: 0;
+}
+
+.panel .history-filters .button-primary {
+  flex: none;
+  padding: 0 16px;
+}
+
+.history-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.history-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.history-open {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-open:hover,
+.history-open:focus-visible {
+  background: var(--control);
+}
+
+.history-title,
+.history-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.history-url {
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.history-time {
+  flex: none;
+  color: var(--sub);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.history-tick {
+  flex: none;
+  margin: 0 0 0 4px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.history-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.history-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.history-select-all .history-tick {
+  margin: 0;
+}
+
+/* Pushes Open selected to the right. */
+.history-count {
+  flex: 1;
+}
+
+.history-note {
+  margin: 0;
+  color: var(--sub);
+  font-size: 13px;
 }

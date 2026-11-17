@@ -16,6 +16,7 @@ import type { PageInfoTab } from './PageDashboard';
 import { PageScreenshot } from './PageScreenshot';
 import { includedLinks, shownLinks, uniqueLinks } from './page-links';
 import type { LinkChoices } from './page-links';
+import { HistoryDialog } from './HistoryDialog';
 import { AddressBar, HighlightBox } from './PageInfoBar';
 import { SiteTabs } from './SiteTabs';
 import { ConfirmBar } from '../components/ConfirmBar';
@@ -229,6 +230,7 @@ export function PageInfoWindow() {
       data-theme={settings.theme}
       style={{ '--accent': settings.accent } as CSSProperties}
     >
+      <HistoryDialog />
       <div className="page-info-bar">
         <SiteTabs />
         <AddressBar key={tabId} onShowSavedHere={askToShowSavedHere} />

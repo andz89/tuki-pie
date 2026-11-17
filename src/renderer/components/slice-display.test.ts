@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   APPS_INDEX,
+  INFO_CARD_INDEX,
   NOTES_INDEX,
   PAGE_INFO_INDEX,
   RING_ITEMS,
@@ -35,6 +36,7 @@ describe('RING_ITEMS', () => {
       'Shortcuts',
       'Apps',
       'Web Page',
+      'Info Card',
       'Notes',
       'Zip',
       'Settings',
@@ -53,6 +55,13 @@ describe('RING_ITEMS', () => {
     expect(RING_ITEMS[SHORTCUTS_INDEX].label).toBe('Shortcuts');
     expect(RING_ITEMS[APPS_INDEX].label).toBe('Apps');
     expect(RING_ITEMS[SETTINGS_INDEX].label).toBe('Settings');
+  });
+
+  it('describes Info Card', () => {
+    expect(RING_ITEMS[INFO_CARD_INDEX]).toMatchObject({
+      label: 'Info Card',
+      icon: 'info-card',
+    });
   });
 
   it('describes Notes', () => {

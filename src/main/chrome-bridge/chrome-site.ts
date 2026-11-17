@@ -41,6 +41,8 @@ export function createChromeSite(
     failed: () => events.failed(ERROR_FAILED),
     cancelled: events.cancelled,
     closed: events.closed,
+    // Only for the Info Card, which has its own site name.
+    activeTabChanged: () => undefined,
   };
   const stopListening = bridge.onEvent((name, from) => {
     if (from === site) {

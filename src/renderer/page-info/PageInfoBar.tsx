@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, RefObject } from 'react';
 import { PieIcon, SliceIcon } from '../components/icons/SliceIcon';
+import { HistoryButton } from './HistoryDialog';
 import { useHighlightSearch } from './highlight-search';
 import { useSavedSitesStore } from '../saved-sites/saved-sites.store';
 import { usePageInfoStore } from './page-info.store';
@@ -186,6 +187,7 @@ export function AddressBar({
         <SliceIcon type={isSaved ? 'bookmark-saved' : 'bookmark'} x={0} y={0} />
       </button>
       <SavedSitesMenu onShowHere={onShowSavedHere} />
+      <HistoryButton />
     </form>
   );
 }

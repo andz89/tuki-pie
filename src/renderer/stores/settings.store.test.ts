@@ -23,6 +23,9 @@ describe('settings store', () => {
         openKeys: 'Ctrl+Alt+Space',
         linkFilter: '',
         suggestionsInChrome: 'on',
+        infoCardLayout: 'sidebar',
+        infoCardFields: 'title',
+        linksOpenIn: 'chrome',
       },
     });
     await useSettingsStore.getState().load();
@@ -42,6 +45,9 @@ describe('settings store', () => {
         openKeys: 'Ctrl+Alt+Space',
         linkFilter: '',
         suggestionsInChrome: 'on',
+        infoCardLayout: 'sidebar',
+        infoCardFields: 'title',
+        linksOpenIn: 'chrome',
       },
     });
     await useSettingsStore.getState().update({ size: 'small' });

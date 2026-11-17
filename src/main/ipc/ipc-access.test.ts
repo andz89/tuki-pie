@@ -71,6 +71,7 @@ const PRELOAD_ROLES: Record<string, WindowRole[]> = {
   'saved-sites-api.ts': ['page-info', 'saved-sites'],
   'reminder-preload.ts': ['reminder'],
   'screenshot-preload.ts': ['screenshot'],
+  'info-card-preload.ts': ['info-card'],
 };
 
 function invokedChannels(file: string): string[] {

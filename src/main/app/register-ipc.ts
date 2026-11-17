@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import path from 'node:path';
 import { registerChromeIpc } from '../ipc/chrome.ipc';
+import { registerInfoCardIpc } from '../ipc/info-card.ipc';
 import { registerNotesIpc, registerReminderIpc } from '../ipc/notes.ipc';
 import { registerPageInfoIpc } from '../ipc/page-info.ipc';
 import { registerPanelIpc } from '../ipc/panel.ipc';
@@ -42,6 +43,7 @@ export function registerIpc({
   registerNotesIpc(notes);
   registerReminderIpc(notes);
   registerPageInfoIpc(settings);
+  registerInfoCardIpc(settings);
   registerSavedSitesIpc(savedSites);
   registerScreenshotIpc();
   registerZipIpc(zipSelection);

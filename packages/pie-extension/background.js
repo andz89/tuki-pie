@@ -1,5 +1,7 @@
+import { createActiveTab } from './active-tab.js';
 import { createConnection, createRequestHandler } from './connection.js';
 import { watchTabs } from './events.js';
+import { createHistorySearch } from './history.js';
 import { createImageFetcher } from './image.js';
 import { createSuggestionStore } from './suggestions-store.js';
 import { createTabs } from './tabs.js';
@@ -10,6 +12,7 @@ let connection = null;
 const sendEvent = (name, site) => connection?.sendEvent(name, site);
 
 const tabs = createTabs({ chrome, sendEvent });
+const activeTab = createActiveTab({ chrome, sendEvent });
 const suggestions = createSuggestionStore(chrome.storage.local);
 
 connection = createConnection({
@@ -28,10 +31,15 @@ connection = createConnection({
     forget: tabs.forget,
     setSuggestions: suggestions.save,
     image: createImageFetcher(),
+    history: createHistorySearch(chrome),
+    readActive: activeTab.readActive,
+    showActiveLink: activeTab.showActiveLink,
+    highlightActive: activeTab.highlightActive,
   }),
 });
 
 watchTabs({ chrome, tabs, sendEvent });
+activeTab.watch();
 
 // Wakes the worker every 30 seconds to connect when Pie Launcher wasn't
 // running yet. The shortest period Chrome allows.

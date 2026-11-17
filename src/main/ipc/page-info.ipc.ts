@@ -13,6 +13,13 @@ import type {
   PageScreenshot,
   SiteTabList,
 } from '../../shared/types';
+import { getChromeBridge } from '../chrome-bridge/chrome-connection';
+import { searchChromeHistory } from '../chrome-bridge/chrome-history';
+import {
+  HistoryMatch,
+  MAX_HISTORY_DAYS,
+  MAX_HISTORY_TEXT,
+} from '../../shared/schemas/history.schema';
 import { SAVED_TO, saveToPictures } from '../screenshot/screenshot';
 import { copyPicture, jpegBytes } from '../screenshot/picture';
 import { pageScreenshotFileName } from '../screenshot/screenshot-geometry';
@@ -87,6 +94,17 @@ export function registerPageInfoIpc(settings: SettingsService): void {
     IpcChannels.pageInfoImage,
     z.tuple([z.string().max(MAX_PAGE_URL), z.enum(['thumb', 'full'])]),
     (url, size) => getPageInfoImages()?.get(url, size) ?? null,
+  );
+
+  handle(
+    IpcChannels.pageInfoHistory,
+    z.tuple([
+      z.string().max(MAX_HISTORY_TEXT),
+      z.number().int().min(1).max(MAX_HISTORY_DAYS),
+      HistoryMatch,
+    ]),
+    (text, days, match) =>
+      searchChromeHistory(getChromeBridge(), text.trim(), days, match),
   );
 
   handle(

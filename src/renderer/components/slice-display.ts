@@ -15,6 +15,11 @@ export const RING_ITEMS: RingItem[] = [
   { label: 'Shortcuts', description: 'Saved links', icon: 'shortcut' },
   { label: 'Apps', description: 'Your programs', icon: 'app' },
   { label: 'Web Page', description: 'Check a website', icon: 'page-info' },
+  {
+    label: 'Info Card',
+    description: 'Page info of the tab in front',
+    icon: 'info-card',
+  },
   { label: 'Notes', description: 'Notes and reminders', icon: 'note' },
   { label: 'Zip', description: 'Selected images', icon: 'zip' },
   { label: 'Settings', description: 'Pie Launcher', icon: 'settings' },
@@ -25,9 +30,10 @@ export const SNIPPETS_INDEX = 1;
 export const SHORTCUTS_INDEX = 2;
 export const APPS_INDEX = 3;
 export const PAGE_INFO_INDEX = 4;
-export const NOTES_INDEX = 5;
-export const ZIP_INDEX = 6;
-export const SETTINGS_INDEX = 7;
+export const INFO_CARD_INDEX = 5;
+export const NOTES_INDEX = 6;
+export const ZIP_INDEX = 7;
+export const SETTINGS_INDEX = 8;
 
 // What the middle says about the Zip slice. null: still asking Explorer.
 export function zipDescription(count: number | null): string {

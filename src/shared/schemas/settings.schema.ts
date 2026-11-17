@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import { DEFAULT_LINK_FILTER } from '../link-rules';
+import {
+  INFO_CARD_FIELDS,
+  InfoCardFields,
+  InfoCardLayout,
+  LinksOpenIn,
+} from './info-card.schema';
 
 export const Theme = z.enum(['dark', 'light']);
 
@@ -25,6 +31,11 @@ export const Settings = z.object({
   // Page Info's Link filters, as JSON. See shared/link-rules.ts.
   linkFilter: z.string().max(20000),
   suggestionsInChrome: OnOff,
+  // The Info Card's place on screen and the page info it shows.
+  infoCardLayout: InfoCardLayout,
+  infoCardFields: InfoCardFields,
+  // Where the Links card opens links.
+  linksOpenIn: LinksOpenIn,
 });
 
 export const SettingsUpdate = Settings.partial();
@@ -57,6 +68,9 @@ export const DEFAULT_SETTINGS: Settings = {
   openKeys: 'Ctrl+Alt+Space',
   linkFilter: JSON.stringify(DEFAULT_LINK_FILTER),
   suggestionsInChrome: 'on',
+  infoCardLayout: 'sidebar',
+  infoCardFields: INFO_CARD_FIELDS.join(','),
+  linksOpenIn: 'chrome',
 };
 
 export const PIE_SCALES: Record<PieSize, number> = {

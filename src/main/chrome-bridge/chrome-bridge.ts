@@ -30,6 +30,7 @@ export const SITE_EVENTS = [
   'failed',
   'cancelled',
   'closed',
+  'activeTabChanged',
 ] as const;
 export type SiteEventName = (typeof SITE_EVENTS)[number];
 

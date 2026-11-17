@@ -33,6 +33,10 @@ export const ACTIONS = [
   'forget',
   'setSuggestions',
   'image',
+  'history',
+  'readActive',
+  'showActiveLink',
+  'highlightActive',
 ];
 
 // Most links Page Info opens in one go.
@@ -44,11 +48,16 @@ export const EVENTS = [
   'failed',
   'cancelled',
   'closed',
+  'activeTabChanged',
 ];
 
 // Each tab in Page Info names itself with a site id, so every request and
 // event belongs to one of them. A request without one uses DEFAULT_SITE.
 export const DEFAULT_SITE = 'main';
+
+// The site name on events about the tab you are looking at, for the Info
+// Card. Page Info's own tabs are numbered, so it never matches one.
+export const ACTIVE_TAB_SITE = 'active-tab';
 
 export function isSite(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(value);

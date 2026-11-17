@@ -314,6 +314,9 @@ describe('settings', () => {
       openKeys: 'Ctrl+Alt+Space',
       linkFilter: '{"off":[],"words":[],"tokens":true}',
       suggestionsInChrome: 'on',
+      infoCardLayout: 'sidebar',
+      infoCardFields: 'title,canonical,headings,counts,tracking,hyvor,images',
+      linksOpenIn: 'chrome',
     });
   });
 
@@ -327,6 +330,9 @@ describe('settings', () => {
       openKeys: 'Ctrl+Alt+Space',
       linkFilter: '{"off":[],"words":[],"tokens":true}',
       suggestionsInChrome: 'on',
+      infoCardLayout: 'sidebar',
+      infoCardFields: 'title,canonical,headings,counts,tracking,hyvor,images',
+      linksOpenIn: 'chrome',
     });
     expect(settings.get().theme).toBe('light');
   });

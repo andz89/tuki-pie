@@ -25,6 +25,8 @@ describe('the manifest', () => {
     expect(manifest.permissions.sort()).toEqual([
       'alarms',
       'debugger',
+      // Page Info's History.
+      'history',
       'scripting',
       'storage',
       'webNavigation',

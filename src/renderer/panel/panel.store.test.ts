@@ -353,6 +353,9 @@ describe('panel store', () => {
         openKeys: 'Ctrl+Alt+Space',
         linkFilter: '',
         suggestionsInChrome: 'on',
+        infoCardLayout: 'sidebar',
+        infoCardFields: 'title',
+        linksOpenIn: 'chrome',
       },
     });
     vi.mocked(panelBridge.allowedApps.list).mockResolvedValue({
@@ -416,6 +419,9 @@ describe('panel store', () => {
         openKeys: 'Ctrl+Alt+Space',
         linkFilter: '',
         suggestionsInChrome: 'on',
+        infoCardLayout: 'sidebar',
+        infoCardFields: 'title',
+        linksOpenIn: 'chrome',
       },
     });
     await store().updateSettings({ theme: 'light' });

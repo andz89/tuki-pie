@@ -2,6 +2,7 @@ import type { StoreApi } from 'zustand';
 import { bridge } from '../api/bridge';
 import {
   APPS_INDEX,
+  INFO_CARD_INDEX,
   NOTES_INDEX,
   PAGE_INFO_INDEX,
   SCREENSHOT_INDEX,
@@ -21,6 +22,7 @@ type WindowActions = Pick<
   | 'openSettings'
   | 'openPageInfo'
   | 'openNotes'
+  | 'openInfoCard'
   | 'takeScreenshot'
   | 'openShortcutForm'
   | 'close'
@@ -87,6 +89,8 @@ export function createWindowActions(
         store.getState().openShortcutForm({ kind: 'apps-section' });
       } else if (index === PAGE_INFO_INDEX) {
         store.getState().openPageInfo();
+      } else if (index === INFO_CARD_INDEX) {
+        store.getState().openInfoCard();
       } else if (index === NOTES_INDEX) {
         store.getState().openNotes();
       } else if (index === ZIP_INDEX) {
@@ -122,6 +126,12 @@ export function createWindowActions(
       reset();
       store.setState({ error: null, circleHint: null });
       void bridge.window.openNotes();
+    },
+
+    openInfoCard: () => {
+      reset();
+      store.setState({ error: null, circleHint: null });
+      void bridge.window.openInfoCard();
     },
 
     // The donut steps aside on its own, so it isn't in the picture.

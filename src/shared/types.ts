@@ -6,6 +6,13 @@ import type {
   Reminder,
 } from './schemas/note.schema';
 import type { LinkFilter } from './link-rules';
+import type { HistoryMatch, HistoryVisit } from './schemas/history.schema';
+import type {
+  InfoCardField,
+  InfoCardLayout,
+  InfoCardView,
+  LinksOpenIn,
+} from './schemas/info-card.schema';
 import type { PageData, PageReport } from './schemas/page-info.schema';
 import type {
   SaveSiteResult,
@@ -208,6 +215,7 @@ export interface PieBridge {
     openSettings(): Promise<void>;
     openPageInfo(): Promise<void>;
     openNotes(): Promise<void>;
+    openInfoCard(): Promise<void>;
     volume(change: VolumeChange): Promise<void>;
     setListSide(side: ListSide | null): Promise<void>;
   };
@@ -230,6 +238,13 @@ export interface PageInfoBridge {
   copyCapture(): Promise<Result>;
   // A page image through Chrome; null when it couldn't be had.
   image(url: string, size: PageImageSize): Promise<Result<PageImage | null>>;
+  // Pages visited in Chrome in the last `days` days whose address is `text`
+  // (exact) or has it in it (contains), newest first.
+  history(
+    text: string,
+    days: number,
+    match: HistoryMatch,
+  ): Promise<Result<HistoryVisit[]>>;
   onUpdate(listener: (update: PageInfoUpdate) => void): () => void;
   // The tabs across the top. A new one becomes the active one, and checks
   // the address when one is given.
@@ -266,6 +281,81 @@ export interface SavedSitesBridge {
   settings: {
     get(): Promise<Result<Settings>>;
   };
+}
+
+// What the Info Card shows of a page: only the few things on the card, not
+// the whole report.
+export interface InfoCardPage {
+  url: string;
+  title: string | null;
+  description: string | null;
+  canonical: string | null;
+  lang: string | null;
+  h1Count: number;
+  // The first few H1s.
+  h1s: string[];
+  linkCount: number;
+  imageCount: number;
+  issueCount: number;
+  trackers: string[];
+  utmTagged: number;
+  // The Hyvor Talk comments tag and its attributes, or null when none.
+  hyvorTalk: { attributes: Array<{ name: string; value: string }> } | null;
+  featuredImages: Array<{ property: string; url: string }>;
+  // Every link, in page order, for the Links card.
+  links: PageReport['links'];
+  // Every image address, in page order, for the Images card.
+  images: PageReport['images'];
+}
+
+// reading: asking Chrome; the last page stays shown meanwhile.
+// no-page: the tab in front has no web page, like a new tab.
+export type InfoCardStatus =
+  | 'reading'
+  | 'ready'
+  | 'no-page'
+  | 'not-connected'
+  | 'failed';
+
+export interface InfoCardState {
+  status: InfoCardStatus;
+  page: InfoCardPage | null;
+  // Grows with each new page, so the Links card starts its ticks afresh.
+  pageId: number;
+  // info: the Info Card. links: the Links card, in its place.
+  view: InfoCardView;
+  pinned: boolean;
+  layout: InfoCardLayout;
+  fields: InfoCardField[];
+  theme: Settings['theme'];
+  // The saved Link filters, as Web Page reads them.
+  linkFilter: Settings['linkFilter'];
+  // Where the Links card opens links.
+  linksOpenIn: LinksOpenIn;
+}
+
+// What the Info Card can do, available to it as `window.infoCard`.
+export interface InfoCardBridge {
+  getState(): Promise<Result<InfoCardState>>;
+  setPinned(pinned: boolean): Promise<Result>;
+  setLayout(layout: InfoCardLayout): Promise<Result>;
+  setFields(fields: InfoCardField[]): Promise<Result>;
+  image(url: string, size: PageImageSize): Promise<Result<PageImage | null>>;
+  close(): Promise<Result>;
+  // The page on the card, checked in full in the Web Page window.
+  openInWebPage(): Promise<Result>;
+  setView(view: InfoCardView): Promise<Result>;
+  // The Links card's actions. Each link must be one of the card page's.
+  showLink(index: number, href: string): Promise<Result<LinkSpot | null>>;
+  openLinks(urls: string[], ticked: string[]): Promise<Result<boolean>>;
+  // One link checked in its own Web Page tab.
+  openHere(href: string, ticked: boolean): Promise<Result>;
+  setLinkFilter(filter: LinkFilter): Promise<Result>;
+  setLinksOpenIn(openIn: LinksOpenIn): Promise<Result>;
+  // Marks these words on the page in Chrome; empty clears. How many places
+  // were marked, or null when Chrome did not answer.
+  highlight(text: string): Promise<Result<number | null>>;
+  onUpdate(listener: (state: InfoCardState) => void): () => void;
 }
 
 // What the Notes window can do, available to it as `window.notes`.

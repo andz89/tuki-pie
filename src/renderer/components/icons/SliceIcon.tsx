@@ -31,6 +31,10 @@ export type PieIconName =
   | 'bookmark'
   | 'bookmark-saved'
   | 'saved-list'
+  | 'history'
+  | 'info-card'
+  | 'layout'
+  | 'fields'
   | 'zip';
 
 const ICON_SHAPES: Record<PieIconName, ReactNode> = {
@@ -51,6 +55,40 @@ const ICON_SHAPES: Record<PieIconName, ReactNode> = {
     <>
       <path d="M3 6h10M3 12h10M3 18h7" />
       <path d="M21 17l-2.5-1.5L16 17V7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1z" />
+    </>
+  ),
+  // A clock with an arrow turning back round it.
+  history: (
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  // A card with a title line and two text lines.
+  'info-card': (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 9h10" />
+      <path d="M7 13h6" />
+      <path d="M7 16h8" />
+    </>
+  ),
+  // A window split into a main area and a side strip.
+  layout: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M15 4v16" />
+    </>
+  ),
+  // A list with ticks.
+  fields: (
+    <>
+      <path d="m4 7 1.5 1.5L8 6" />
+      <path d="m4 13 1.5 1.5L8 12" />
+      <path d="M11 7h9" />
+      <path d="M11 13h9" />
+      <path d="M11 19h9" />
     </>
   ),
   // A folder with a zipper down the middle.

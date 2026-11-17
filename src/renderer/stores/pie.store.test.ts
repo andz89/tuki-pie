@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  INFO_CARD_INDEX,
   NOTES_INDEX,
   PAGE_INFO_INDEX,
   SCREENSHOT_INDEX,
@@ -40,6 +41,7 @@ vi.mock('../api/bridge', () => ({
       openShortcutForm: vi.fn().mockResolvedValue(undefined),
       openPageInfo: vi.fn().mockResolvedValue(undefined),
       openNotes: vi.fn().mockResolvedValue(undefined),
+      openInfoCard: vi.fn().mockResolvedValue(undefined),
       volume: vi.fn().mockResolvedValue(undefined),
       setListSide: vi.fn().mockResolvedValue(undefined),
     },
@@ -183,6 +185,14 @@ describe('opening a ring segment', () => {
     expect(store().hoveredIndex).toBeNull();
     expect(store().error).toBeNull();
     expect(store().circleHint).toBeNull();
+  });
+
+  it('opens the Info Card and clears the donut', () => {
+    usePieStore.setState({ hoveredIndex: INFO_CARD_INDEX, error: 'old' });
+    store().openRingItem(INFO_CARD_INDEX);
+    expect(bridge.window.openInfoCard).toHaveBeenCalledOnce();
+    expect(store().hoveredIndex).toBeNull();
+    expect(store().error).toBeNull();
   });
 
   it('opens Notes and clears the donut', () => {
